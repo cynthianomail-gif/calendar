@@ -17,6 +17,72 @@
   ];
   var WD = ["日", "一", "二", "三", "四", "五", "六"];
 
+  // 外國旅客會不會真的湧到這個目的地，取決於地緣。同區域最高，鄰近區域次之。
+  var NEIGHBOURS = {
+    "東亞": ["東南亞"],
+    "東南亞": ["東亞", "南亞", "大洋洲"],
+    "南亞": ["東南亞", "中東"],
+    "中亞高加索": ["中東", "歐洲"],
+    "中東": ["歐洲", "非洲", "南亞", "中亞高加索"],
+    "歐洲": ["中東", "非洲", "中亞高加索"],
+    "北美": ["中南美"],
+    "中南美": ["北美"],
+    "非洲": ["歐洲", "中東"],
+    "大洋洲": ["東南亞"]
+  };
+  // 少數眾所皆知的長程客源流向，用個別數值蓋過區域規則
+  var STRONG = {
+    JP: { US: .8, AU: .75, GB: .5, CA: .5 },
+    KR: { US: .7, AU: .5 },
+    TW: { US: .55, AU: .5 },
+    TH: { RU: .9, IN: .85, GB: .8, DE: .8, AU: .8, US: .6 },
+    VN: { RU: .7, IN: .6, AU: .6 },
+    ID: { AU: .9, NL: .7, IN: .6, GB: .5 },
+    SG: { IN: .8, AU: .7, GB: .6, US: .5 },
+    MV: { CN: .9, IN: .95, RU: .85, GB: .8, DE: .8, IT: .8 },
+    TR: { DE: .95, RU: .95, GB: .9, NL: .8, PL: .8, FR: .7 },
+    EG: { RU: .9, DE: .85, GB: .8, IT: .8, PL: .7 },
+    MA: { FR: .95, ES: .9, GB: .8, DE: .8 },
+    GR: { DE: .95, GB: .95, FR: .8, IT: .8, PL: .8, US: .6 },
+    ES: { GB: .95, DE: .95, FR: .9, NL: .9, IT: .8, US: .6 },
+    IT: { DE: .95, GB: .9, FR: .9, NL: .85, US: .7 },
+    PT: { GB: .95, DE: .9, FR: .9, ES: .95, NL: .85 },
+    HR: { DE: .95, AT: .9, IT: .9, PL: .85, GB: .8 },
+    MX: { US: .95, CA: .9 },
+    DO: { US: .9, CA: .85, DE: .6 },
+    CU: { CA: .9, RU: .7, ES: .7 },
+    JM: { US: .9, CA: .85, GB: .7 },
+    AE: { IN: .9, GB: .85, RU: .8, DE: .7, CN: .7 },
+    QA: { IN: .85, GB: .7, DE: .6 },
+    AU: { CN: .8, US: .7, GB: .8, IN: .7, JP: .7 },
+    NZ: { AU: .95, CN: .7, US: .7, GB: .7 },
+    ZA: { GB: .85, DE: .85, US: .6, NL: .7 },
+    MU: { FR: .9, GB: .8, DE: .8, IN: .8, ZA: .8 },
+    LK: { IN: .9, GB: .8, DE: .7, RU: .7 },
+    NP: { IN: .95, CN: .8, US: .6, GB: .6 },
+    KH: { CN: .9, TH: .9, VN: .9, KR: .85, US: .5 },
+    LA: { TH: .95, VN: .9, CN: .9, KR: .8 },
+    IS: { US: .8, GB: .85, DE: .85, FR: .7 },
+    IE: { GB: .95, US: .85, DE: .7, FR: .7 },
+    FJ: { AU: .95, NZ: .95, US: .7 },
+    PW: { TW: .9, JP: .9, KR: .8, CN: .7 }
+  };
+  // 長程客源大國到哪裡都有一定的量
+  var LONGHAUL = { US: 1, GB: 1, DE: 1, FR: 1, CN: 1, JP: 1, KR: 1, AU: 1,
+                   CA: 1, IT: 1, ES: 1, NL: 1, RU: 1, IN: 1, TW: 1, HK: 1, SG: 1 };
+
+  function affinity(srcCode, destCode) {
+    if (!destCode || srcCode === destCode) return 1;
+    var strong = STRONG[destCode];
+    if (strong && strong[srcCode] !== undefined) return strong[srcCode];
+    var src = META[srcCode], dst = META[destCode];
+    var base;
+    if (src.region === dst.region) base = 1;
+    else if ((NEIGHBOURS[dst.region] || []).indexOf(src.region) !== -1) base = .55;
+    else base = .25;
+    return LONGHAUL[srcCode] ? Math.max(base, .5) : base;
+  }
+
   /* -------------------------------------------------------- 日期小工具 */
   function ymd(dt) {
     var m = dt.getMonth() + 1, d = dt.getDate();
@@ -104,13 +170,17 @@
 
   // 季節性旺季（暑假、盂蘭盆節…）是「整段期間都比較擠」，
   // 不像法定連假會造成單日尖峰，因此給固定的溫和權重。
-  function entryImpact(code, entry, runLen) {
-    var w = META[code].weight;
-    if (entry.kind === "season") return w * 0.3;
-    return w * TRAVEL_W[entry.travel] * (1 + Math.min(runLen, 10) * 0.08);
+  function entryImpact(code, entry, runLen, destCode) {
+    // 目的地自己在放假時，動的是「當地全體居民」，跟這個國家出國傾向無關，
+    // 所以用固定基數，而不是出境影響力。
+    var local = code === destCode;
+    var w = local ? 90 : META[code].weight * affinity(code, destCode);
+    if (entry.kind === "season") return w * (local ? 0.5 : 0.3);
+    var f = (1 + Math.min(runLen, 10) * 0.08) * (local ? 2.1 : 1);
+    return w * TRAVEL_W[entry.travel] * f;
   }
 
-  function contributions(dstr, codes) {
+  function contributions(dstr, codes, destCode) {
     var out = [];
     for (var i = 0; i < codes.length; i++) {
       var code = codes[i];
@@ -119,7 +189,7 @@
       var len = IDX[code].runLen[dstr] || 1;
       var best = null, bestImpact = 0;
       for (var j = 0; j < es.length; j++) {
-        var imp = entryImpact(code, es[j], len);
+        var imp = entryImpact(code, es[j], len, destCode);
         if (imp > bestImpact) { bestImpact = imp; best = es[j]; }
       }
       if (!best) continue;
@@ -129,7 +199,8 @@
         best: best,
         run: best.kind === "season" ? null : IDX[code].run[dstr],
         runLen: len,
-        impact: bestImpact
+        impact: bestImpact,
+        local: code === destCode
       });
     }
     out.sort(function (a, b) { return b.impact - a.impact; });
@@ -139,7 +210,7 @@
   function dayScore(dstr, codes, key) {
     var ck = key + "|" + dstr;
     if (scoreCache[ck] !== undefined) return scoreCache[ck];
-    var parts = contributions(dstr, codes), raw = 0;
+    var parts = contributions(dstr, codes, state.dest), raw = 0;
     for (var i = 0; i < parts.length; i++) raw += parts[i].impact;
     var s = Math.round(100 * (1 - Math.exp(-raw / 250)));
     scoreCache[ck] = s;
@@ -154,7 +225,9 @@
       if (s > max) max = s;
       d = addDays(d, 1);
     }
-    return Math.round(0.6 * (sum / len) + 0.4 * max);
+    // 指定目的地時，最擠的那一天更能決定體感，所以尖峰權重拉高
+    var peakW = state.dest ? 0.5 : 0.4;
+    return Math.round((1 - peakW) * (sum / len) + peakW * max);
   }
 
   /* -------------------------------------------------------- 狀態 */
@@ -169,7 +242,8 @@
     selected: null,           // Set 形式（用物件模擬以求相容性）
     month: null,
     countryYear: DATA.years[0],
-    search: ""
+    search: "",
+    dest: ""
   };
 
   function loadSelection() {
@@ -191,10 +265,11 @@
     } catch (e) { /* 忽略 */ }
   }
   function activeCodes() {
-    return DATA.countries.filter(function (c) { return state.selected[c.code]; })
-      .map(function (c) { return c.code; });
+    return DATA.countries.filter(function (c) {
+      return state.selected[c.code] || c.code === state.dest;
+    }).map(function (c) { return c.code; });
   }
-  function filterKey() { return activeCodes().join(","); }
+  function filterKey() { return state.dest + "@" + activeCodes().join(","); }
 
   /* -------------------------------------------------------- DOM 工具 */
   function $(id) { return document.getElementById(id); }
@@ -205,6 +280,28 @@
     return n;
   }
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+  var CLOSURE_TEXT = {
+    strict: "多數商店、超市與博物館休息",
+    partial: "銀行與公家機關休息，觀光區大多照常",
+    open: "商店與景點大多照常營業"
+  };
+
+  function closureOf(country, entries) {
+    var pub = entries.filter(function (e) { return e.kind !== "season"; });
+    if (!pub.length) return null;
+    var shut = pub.filter(function (e) { return e.closed === true; })[0];
+    if (shut) {
+      return { level: "shut", hasNote: !!shut.note,
+               text: "商店與景點大多休息，連觀光區也會受影響" };
+    }
+    if (pub.some(function (e) { return e.closed === false; })) {
+      return { level: "open", text: "商店照常營業，但到處都會排隊" };
+    }
+    var lv = country.closure === "strict" ? "shut"
+           : country.closure === "open" ? "open" : "some";
+    return { level: lv, text: CLOSURE_TEXT[country.closure] || CLOSURE_TEXT.partial };
+  }
 
   function travelTag(entry) {
     if (entry.kind === "season") return { cls: "tag season", text: "旅遊旺季" };
@@ -336,34 +433,124 @@
         cell.title = fmtShort(ds) + "：擁擠指數 " + s;
         cell.addEventListener("click", function () { openSheet(ds); });
         grid.appendChild(cell);
-        contributions(ds, codes).forEach(function (p) {
+        contributions(ds, codes, state.dest).forEach(function (p) {
           if (!topAll[p.code] || topAll[p.code].impact < p.impact) topAll[p.code] = p;
         });
       })(d);
       d = addDays(d, 1);
     }
 
-    // 說明文字
+    // 拆成「當地在放假」與「外國人會湧進來」兩塊
     var ranked = Object.keys(topAll).map(function (k) { return topAll[k]; })
       .sort(function (a, b) { return b.impact - a.impact; });
+    var localParts = ranked.filter(function (p) { return p.local; });
+    var foreign = ranked.filter(function (p) { return !p.local; });
+
     var desc = LEVELS[lv].desc;
-    if (ranked.length) {
-      desc += "主要來自 " + ranked.slice(0, 3).map(function (p) {
-        return META[p.code].name + p.best.name;
-      }).join("、") + "。";
+    if (localParts.length) {
+      desc += META[state.dest].name + "當地正逢" +
+        localParts.slice(0, 2).map(function (p) {
+          // 「黃金週」比「憲法紀念日」好認，有旺季名稱時優先用
+          var season = p.entries.filter(function (e) { return e.kind === "season"; })[0];
+          return (season || p.best).name;
+        }).join("、") + "，";
+      desc += foreign.length ? "同時" : "";
+    }
+    if (foreign.length) {
+      desc += (localParts.length ? "" : "主要來自 ") +
+        foreign.slice(0, 3).map(function (p) {
+          return META[p.code].name + p.best.name;
+        }).join("、") + (localParts.length ? "的旅客也會增加。" : "。");
+    } else if (localParts.length) {
+      desc += "外國旅客則沒有特別多。";
     }
     $("score-desc").textContent = desc;
 
-    // 重疊清單
+    renderDestAlert(len);
+    renderDest(localParts);
+
     var list = $("overlap-list");
     clear(list);
-    if (!ranked.length) {
-      list.appendChild(el("p", "empty", "太好了，你選的日期沒有任何國家在放國定假日。"));
+    $("overlap-title").textContent = state.dest
+      ? "其他國家的連假（可能湧入的旅客）" : "這段期間正在放假的國家";
+    if (!foreign.length) {
+      list.appendChild(el("p", "empty", state.dest
+        ? "這段期間沒有其他國家在放連假，外國旅客不會特別多。"
+        : "太好了，你選的日期沒有任何國家在放國定假日。"));
     } else {
-      ranked.forEach(function (p) { list.appendChild(entryRow(p.code, p)); });
+      // 五一、聖誕這種全球共通的假日會一次列出幾十國，先收起影響力較小的
+      var CAP = 10;
+      foreign.slice(0, CAP).forEach(function (p) { list.appendChild(entryRow(p.code, p)); });
+      if (foreign.length > CAP) {
+        var rest = el("div", "more-wrap");
+        var btn = el("button", "more-btn", "還有 " + (foreign.length - CAP) + " 個國家也在放假");
+        btn.addEventListener("click", function () {
+          rest.removeChild(btn);
+          foreign.slice(CAP).forEach(function (p) { rest.appendChild(entryRow(p.code, p)); });
+        });
+        rest.appendChild(btn);
+        list.appendChild(rest);
+      }
     }
 
     renderSuggestions(len, score, codes, key);
+  }
+
+  function noteLine(cls, text) {
+    var n = el("div", "closure " + cls);
+    n.appendChild(el("span", null, text));
+    return n;
+  }
+
+  // 「不擠」跟「開不開」是兩回事：贖罪日的以色列人潮很少，但整個國家停擺。
+  // 所以歇業天數不塞進指數，另外用一條警示講清楚。
+  function renderDestAlert(len) {
+    var box = $("dest-alert");
+    box.textContent = "";
+    if (!state.dest) { box.hidden = true; return; }
+    var c = META[state.dest], shut = 0, some = 0, dt = parse(state.start);
+    for (var i = 0; i < len; i++) {
+      var es = IDX[c.code].days[ymd(dt)];
+      if (es) {
+        var cl = closureOf(c, es);
+        if (cl && cl.level === "shut") shut++;
+        else if (cl && cl.level === "some") some++;
+      }
+      dt = addDays(dt, 1);
+    }
+    if (!shut && !some) { box.hidden = true; return; }
+    box.hidden = false;
+    box.className = "alert " + (shut ? "alert-shut" : "alert-some");
+    box.textContent = shut
+      ? "行程中有 " + shut + " 天，" + c.name + "當地的商店與景點大多休息"
+      : "行程中有 " + some + " 天，" + c.name + "的銀行與公家機關休息（觀光區大多照常）";
+  }
+
+  function renderDest(localParts) {
+    var card = $("dest-card");
+    if (!state.dest) { card.hidden = true; return; }
+    var c = META[state.dest];
+    card.hidden = false;
+    $("dest-title").textContent = "在" + c.name + "當地會遇到什麼";
+    var body = $("dest-body");
+    clear(body);
+
+    if (!localParts.length) {
+      body.appendChild(el("p", "empty",
+        "這段期間" + c.name + "沒有國定假日，商店與景點照常營運。"));
+      return;
+    }
+    localParts.forEach(function (p) {
+      var row = entryRow(c.code, p);
+      var box = row.getElementsByClassName("body")[0];
+      var cl = closureOf(c, p.entries);
+      // 假期自己的說明已經寫得更具體時，就不再補一句罐頭文字
+      if (cl && !cl.hasNote) box.appendChild(noteLine(cl.level, cl.text));
+      if (p.best.travel === "high") {
+        box.appendChild(noteLine("crowd", "當地人自己也在移動，國內交通與熱門景點會特別擠"));
+      }
+      body.appendChild(row);
+    });
   }
 
   function renderSuggestions(len, currentScore, codes, key) {
@@ -438,7 +625,7 @@
       (function (day) {
         var dt = new Date(y, m, day), ds = ymd(dt);
         var s = dayScore(ds, codes, key);
-        var parts = contributions(ds, codes);
+        var parts = contributions(ds, codes, state.dest);
         var lv = levelOf(s);
         var cell = el("button", "mday tint lv-bg" + lv + (ds === todayStr ? " today" : ""));
         cell.appendChild(el("span", "n", String(day)));
@@ -470,7 +657,7 @@
         seen[k] = true;
         items.push({
           code: code,
-          impact: entryImpact(code, e, len),
+          impact: entryImpact(code, e, len, state.dest),
           part: { entries: [e], best: e, run: run, runLen: len }
         });
       });
@@ -493,7 +680,7 @@
       "（週" + WD[dt.getDay()] + "）・" + LEVELS[lv].name + " " + s;
     var body = $("sheet-body");
     clear(body);
-    var parts = contributions(ds, codes);
+    var parts = contributions(ds, codes, state.dest);
     if (!parts.length) {
       body.appendChild(el("p", "empty", "這一天沒有國家放國定假日。"));
     } else {
@@ -590,6 +777,35 @@
     });
   }
 
+  function initDestination() {
+    var sel = $("destination");
+    sel.appendChild(el("option", null, "不指定（看全球人潮）"));
+    sel.firstChild.value = "";
+    REGIONS.forEach(function (region) {
+      var g = document.createElement("optgroup");
+      g.label = region;
+      regionCountries(region).slice().sort(function (a, b) { return b.weight - a.weight; })
+        .forEach(function (c) {
+          var o = el("option", null, c.flag + " " + c.name);
+          o.value = c.code;
+          g.appendChild(o);
+        });
+      sel.appendChild(g);
+    });
+    try {
+      var saved = localStorage.getItem("hr.dest");
+      if (saved && META[saved]) state.dest = saved;
+    } catch (e) { /* 忽略 */ }
+    sel.value = state.dest;
+    sel.addEventListener("change", function () {
+      state.dest = sel.value;
+      try { localStorage.setItem("hr.dest", state.dest); } catch (e) { /* 忽略 */ }
+      scoreCache = {};
+      renderTrip();
+      renderCalendar();
+    });
+  }
+
   function initTripControls() {
     var today = new Date();
     var start = clampToRange(addDays(today, 30));
@@ -625,8 +841,9 @@
         state.selected = {};
         DATA.countries.forEach(function (c) {
           if (b.dataset.preset === "all") state.selected[c.code] = true;
-          else if (b.dataset.preset === "asia" && (c.region === "亞洲" || c.region === "大洋洲")) state.selected[c.code] = true;
-          else if (b.dataset.preset === "major" && c.weight >= 50) state.selected[c.code] = true;
+          else if (b.dataset.preset === "asia" &&
+                   ["東亞", "東南亞", "南亞", "大洋洲"].indexOf(c.region) !== -1) state.selected[c.code] = true;
+          else if (b.dataset.preset === "major" && c.weight >= 45) state.selected[c.code] = true;
         });
         afterFilterChange();
       });
@@ -693,6 +910,7 @@
 
   state.selected = loadSelection();
   initTabs();
+  initDestination();
   initTripControls();
   initCalendar();
   initCountries();
