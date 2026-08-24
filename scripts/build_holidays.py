@@ -66,6 +66,12 @@ def nth_weekday(year, month, weekday, n):
     return last_day - dt.timedelta(days=offset)
 
 
+def next_weekday_after(day, weekday):
+    """day 之後（不含當日）的第一個指定星期幾"""
+    offset = (weekday - day.weekday() - 1) % 7 + 1
+    return day + dt.timedelta(days=offset)
+
+
 def observe(day, rule):
     """把落在週末的假日移到補假日。rule 決定各國作法。"""
     wd = day.weekday()  # 5=週六 6=週日
@@ -101,8 +107,8 @@ LUNAR = {
         "midautumn": d("2026-09-25"), "chongyang": d("2026-10-18"),
         "buddha": d("2026-05-24"), "vesak": d("2026-05-31"),
         "seollal": d("2026-02-17"), "chuseok": d("2026-09-25"),
-        "deepavali": d("2026-11-08"), "holi": d("2026-03-04"),
-        "dashain": d("2026-10-20"), "tihar": d("2026-11-08"),
+        "deepavali": d("2026-11-08"), "holi": d("2026-03-03"),
+        "dashain": d("2026-10-19"), "tihar": d("2026-11-08"),
     },
     2027: {
         "cny": d("2027-02-06"), "nye": d("2027-02-05"),
@@ -110,7 +116,7 @@ LUNAR = {
         "midautumn": d("2027-09-15"), "chongyang": d("2027-10-08"),
         "buddha": d("2027-05-13"), "vesak": d("2027-05-20"),
         "seollal": d("2027-02-06"), "chuseok": d("2027-09-15"),
-        "deepavali": d("2027-10-29"), "holi": d("2027-03-22"),
+        "deepavali": d("2027-10-29"), "holi": d("2027-03-21"),
         "dashain": d("2027-10-09"), "tihar": d("2027-10-29"),
     },
 }
@@ -123,7 +129,8 @@ ISLAMIC = {
 }
 
 # 諾魯茲（波斯新年）—— 伊朗、中亞、高加索一帶
-PERSIAN = {2026: d("2026-03-20"), 2027: d("2027-03-21")}
+# 伊朗的諾魯茲跟著春分走；中亞與高加索各國則是法定的固定日期，兩者要分開。
+PERSIAN = {2026: d("2026-03-20"), 2027: d("2027-03-20")}
 
 # 其他需要逐年查表的節日
 JP_EQUINOX = {2026: (d("2026-03-20"), d("2026-09-23")), 2027: (d("2027-03-21"), d("2027-09-23"))}
@@ -134,15 +141,16 @@ NZ_MATARIKI = {2026: d("2026-07-10"), 2027: d("2027-06-25")}
 IN_DUSSEHRA = {2026: d("2026-10-20"), 2027: d("2027-10-09")}
 VN_HUNG = {2026: d("2026-04-26"), 2027: d("2027-04-16")}
 EG_SHAM = {2026: d("2026-04-13"), 2027: d("2027-05-03")}
-KH_PCHUM = {2026: d("2026-09-30"), 2027: d("2027-09-19")}
-MN_TSAGAAN = {2026: d("2026-02-17"), 2027: d("2027-02-07")}
+KH_PCHUM = {2026: d("2026-09-21"), 2027: d("2027-10-10")}
+# 蒙古白月節通常比農曆春節晚一天
+MN_TSAGAAN = {2026: d("2026-02-18"), 2027: d("2027-02-07")}
 IL_TABLE = {
     2026: {"purim": d("2026-03-03"), "pesach": (d("2026-04-02"), d("2026-04-08")),
            "shavuot": d("2026-05-22"), "rosh": (d("2026-09-12"), d("2026-09-13")),
-           "kippur": d("2026-09-21"), "sukkot": (d("2026-09-26"), d("2026-10-03"))},
+           "kippur": d("2026-09-21"), "sukkot": (d("2026-09-26"), d("2026-10-02"))},
     2027: {"purim": d("2027-03-23"), "pesach": (d("2027-04-22"), d("2027-04-28")),
            "shavuot": d("2027-06-11"), "rosh": (d("2027-10-02"), d("2027-10-03")),
-           "kippur": d("2027-10-11"), "sukkot": (d("2027-10-16"), d("2027-10-23"))},
+           "kippur": d("2027-10-11"), "sukkot": (d("2027-10-16"), d("2027-10-22"))},
 }
 
 
@@ -164,11 +172,11 @@ def H(name, start, end=None, travel="low", approx=False, kind="public",
 # ---------------------------------------------------------------- 假期範本
 # 大多數國家的假期 = 一套宗教/文化骨架 + 幾個國定紀念日。
 
-def p_west_cath(y):
+def p_west_cath(y, good_friday=True):
     e = easter(y)
     return [
         H("元旦", D(y, 1, 1), travel="mid"),
-        H("復活節連假", days(e, -2), days(e, 1), "high"),
+        H("復活節連假", days(e, -2 if good_friday else 0), days(e, 1), "high"),
         H("勞動節", D(y, 5, 1), travel="mid"),
         H("聖母升天日", D(y, 8, 15), travel="mid"),
         H("諸聖節", D(y, 11, 1), travel="mid"),
@@ -237,7 +245,8 @@ def p_persian(y):
 
 
 PROFILES = {
-    "west_cath": p_west_cath, "west_prot": p_west_prot, "orthodox": p_orthodox,
+    "west_cath": p_west_cath,
+    "west_cath_nogf": lambda y: p_west_cath(y, good_friday=False), "west_prot": p_west_prot, "orthodox": p_orthodox,
     "muslim": p_muslim, "latin": p_latin, "anglo": p_anglo, "persian": p_persian,
 }
 
@@ -382,6 +391,20 @@ COUNTRIES = [
     ("PW", "帛琉", "Palau", "🇵🇼", "大洋洲", 2, "partial"),
 ]
 
+# 已逐一對照各國官方公告或權威來源核對過 2026 年假期的國家。
+# 未列入的國家仍以節期範本產生，涵蓋主要假期，但未經逐項查證。
+VERIFIED = {
+    "CN", "JP", "KR", "TW", "HK", "MO", "MN",
+    "SG", "MY", "TH", "VN", "ID", "PH", "KH", "LA",
+    "IN", "NP",
+    "KZ", "UZ", "AZ", "GE",
+    "TR", "AE", "SA", "IL", "QA", "KW", "BH", "OM", "IQ",
+    "GB", "IE", "FR", "DE", "NL", "BE", "LU", "CH", "AT", "IT", "ES", "PT",
+    "GR", "MT", "CY", "SE", "IS", "EE", "PL", "CZ", "SK", "HU", "SI", "HR", "RU",
+    "US", "CA", "MX", "BR", "CL", "PE",
+    "EG", "ZA", "KE",
+}
+
 # 週末不是週六日的國家（0=週一 … 6=週日）
 WEEKENDS = {
     "SA": [4, 5], "IL": [4, 5], "EG": [4, 5], "KW": [4, 5], "QA": [4, 5],
@@ -411,17 +434,20 @@ SIMPLE = {
             x=lambda y: [
                 H("白月節（Tsagaan Sar）", MN_TSAGAAN[y], days(MN_TSAGAAN[y], 2), "high",
                   approx=True, note="蒙古最大節慶，全國返鄉"),
-                H("那達慕大會", D(y, 7, 11), D(y, 7, 15), "high", note="全國停擺的傳統運動會")]),
+                H("那達慕大會", D(y, 7, 10), D(y, 7, 15), "high", note="全國停擺的傳統運動會")]),
     "KH": S(n=[("元旦", 1, 1, "mid"), ("勝利日", 1, 7, "low"), ("婦女節", 3, 8, "low"),
                ("勞動節", 5, 1, "mid"), ("國王誕辰", 5, 14, "low"), ("憲法日", 9, 24, "low"),
                ("獨立紀念日", 11, 9, "low")],
             x=lambda y: [
-                H("高棉新年", D(y, 4, 13), D(y, 4, 16), "high", closed=True,
+                H("高棉新年", D(y, 4, 14), D(y, 4, 16), "high", closed=True,
                   note="全國放假返鄉，吳哥窟一帶人潮最多"),
+                H("御耕節", D(y, 5, 15), travel="low"),
+                H("王太后誕辰", D(y, 6, 18), travel="low"),
                 H("亡人節（Pchum Ben）", KH_PCHUM[y], days(KH_PCHUM[y], 2), "high", approx=True),
-                H("送水節", D(y, 11, 13), D(y, 11, 15), "mid", approx=True)]),
-    "LA": S(n=[("元旦", 1, 1, "mid"), ("勞動節", 5, 1, "mid"), ("國慶日", 12, 2, "mid")],
-            x=lambda y: [H("寮國新年（Pi Mai）", D(y, 4, 14), D(y, 4, 16), "high", closed=True)]),
+                H("送水節", D(y, 11, 23), D(y, 11, 25), "mid", approx=True)]),
+    "LA": S(n=[("元旦", 1, 1, "mid"), ("建軍節", 1, 20, "low"), ("婦女節", 3, 8, "low"),
+               ("勞動節", 5, 1, "mid"), ("國慶日", 12, 2, "mid")],
+            x=lambda y: [H("寮國新年（Pi Mai）", D(y, 4, 13), D(y, 4, 16), "high", closed=True)]),
     "MM": S(n=[("獨立紀念日", 1, 4, "low"), ("聯邦日", 2, 12, "low"), ("勞動節", 5, 1, "mid"),
                ("烈士日", 7, 19, "low"), ("聖誕節", 12, 25, "low")],
             x=lambda y: [
@@ -464,12 +490,12 @@ SIMPLE = {
                ("團結日", 5, 1, "mid"), ("祖國保衛者日", 5, 7, "low"), ("勝利日", 5, 9, "mid"),
                ("首都日", 7, 6, "low"), ("憲法日", 8, 30, "low"), ("共和國日", 10, 25, "mid"),
                ("獨立紀念日", 12, 16, "mid")],
-            x=lambda y: [H("納吾肉孜節", PERSIAN[y], days(PERSIAN[y], 3), "high",
+            x=lambda y: [H("納吾肉孜節", D(y, 3, 21), D(y, 3, 23), "high",
                            note="中亞最大春節，全國放長假")]),
     "UZ": S(n=[("新年", 1, 1, "mid"), ("婦女節", 3, 8, "low"), ("紀念日", 5, 9, "low"),
                ("獨立紀念日", 9, 1, "mid"), ("憲法日", 12, 8, "low")],
             x=lambda y: [
-                H("納吾肉孜節", PERSIAN[y], days(PERSIAN[y], 1), "high"),
+                H("納吾肉孜節", D(y, 3, 21), travel="high"),
                 H("開齋節", ISLAMIC[y]["fitr"], travel="mid", approx=True),
                 H("宰牲節", ISLAMIC[y]["adha"], travel="mid", approx=True)]),
     "GE": S(n=[("新年", 1, 1, "mid"), ("東正教聖誕節", 1, 7, "mid"), ("主顯節", 1, 19, "low"),
@@ -483,7 +509,7 @@ SIMPLE = {
     "AZ": S(n=[("新年", 1, 1, "mid"), ("婦女節", 3, 8, "low"), ("勝利日", 5, 9, "low"),
                ("共和國日", 5, 28, "mid"), ("救國日", 6, 15, "low"), ("獨立紀念日", 10, 18, "mid")],
             x=lambda y: [
-                H("諾魯茲", PERSIAN[y], days(PERSIAN[y], 4), "high"),
+                H("諾魯茲", D(y, 3, 20), D(y, 3, 24), "high"),
                 H("開齋節", ISLAMIC[y]["fitr"], days(ISLAMIC[y]["fitr"], 1), "mid", approx=True),
                 H("宰牲節", ISLAMIC[y]["adha"], days(ISLAMIC[y]["adha"], 1), "mid", approx=True)]),
 
@@ -492,7 +518,8 @@ SIMPLE = {
     "KW": S("muslim", n=[("新年", 1, 1, "mid"), ("國慶日", 2, 25, "mid"), ("解放日", 2, 26, "mid")]),
     "BH": S("muslim", n=[("新年", 1, 1, "mid"), ("勞動節", 5, 1, "mid"),
                          ("國慶日", 12, 16, "mid"), ("登基紀念日", 12, 17, "mid")]),
-    "OM": S("muslim", n=[("國慶日", 11, 18, "mid"), ("蘇丹登基日", 1, 11, "low")]),
+    "OM": S("muslim", n=[("國慶日", 11, 18, "mid"), ("國慶翌日", 11, 19, "mid"),
+                         ("蘇丹登基日", 1, 11, "low")]),
     "JO": S("muslim", n=[("新年", 1, 1, "mid"), ("勞動節", 5, 1, "mid"),
                          ("獨立紀念日", 5, 25, "mid"), ("聖誕節", 12, 25, "low")]),
     "LB": S("muslim", n=[("新年", 1, 1, "mid"), ("聖馬龍日", 2, 9, "low"), ("勞動節", 5, 1, "mid"),
@@ -510,7 +537,7 @@ SIMPLE = {
                 H("宰牲節", ISLAMIC[y]["adha"], travel="mid", approx=True, closed=True)]),
     "IQ": S("muslim", n=[("新年", 1, 1, "mid"), ("建軍節", 1, 6, "low"),
                          ("勞動節", 5, 1, "mid"), ("共和日", 7, 14, "mid")],
-            x=lambda y: [H("諾魯茲", PERSIAN[y], travel="mid")]),
+            x=lambda y: [H("諾魯茲（Newroz）", D(y, 3, 21), travel="mid")]),
 }
 
 
@@ -524,10 +551,10 @@ SIMPLE.update({
                 H("八月銀行假日", nth_weekday(y, 8, 0, 1), travel="high"),
                 H("十月銀行假日", nth_weekday(y, 10, 0, -1), travel="mid"),
                 H("聖誕節與聖史蒂芬日", D(y, 12, 25), D(y, 12, 26), "high")]),
-    "BE": S("west_cath", n=[("國慶日", 7, 21, "mid"), ("停戰紀念日", 11, 11, "low")],
+    "BE": S("west_cath_nogf", n=[("國慶日", 7, 21, "mid"), ("停戰紀念日", 11, 11, "low")],
             x=lambda y: [H("耶穌升天節", _e(y, 39), travel="high"),
                          H("聖靈降臨節", _e(y, 50), travel="mid")]),
-    "LU": S("west_cath", n=[("國慶日", 6, 23, "mid")],
+    "LU": S("west_cath_nogf", n=[("國慶日", 6, 23, "mid")],
             x=lambda y: [H("耶穌升天節", _e(y, 39), travel="high"),
                          H("聖靈降臨節", _e(y, 50), travel="mid")]),
     "PT": S(n=[("元旦", 1, 1, "mid"), ("自由日", 4, 25, "mid"), ("勞動節", 5, 1, "mid"),
@@ -535,7 +562,7 @@ SIMPLE.update({
                ("共和國日", 10, 5, "mid"), ("諸聖節", 11, 1, "mid"),
                ("復辟紀念日", 12, 1, "mid"), ("聖母無染原罪日", 12, 8, "mid"),
                ("聖誕節", 12, 25, "high")],
-            x=lambda y: [H("復活節連假", _e(y, -2), _e(y, 1), "high"),
+            x=lambda y: [H("復活節連假", _e(y, -2), _e(y, 0), "high"),
                          H("聖體聖血節", _e(y, 60), travel="mid")]),
     "GR": S(n=[("元旦", 1, 1, "mid"), ("主顯節", 1, 6, "mid"), ("獨立紀念日", 3, 25, "mid"),
                ("勞動節", 5, 1, "mid"), ("聖母升天日", 8, 15, "high"),
@@ -547,12 +574,14 @@ SIMPLE.update({
                 H("聖靈降臨節", _oe(y, 50), travel="mid"),
                 H("節禮日", D(y, 12, 26), travel="high")]),
     "MT": S("west_cath", n=[("聖保羅船難日", 2, 10, "low"), ("聖約瑟夫日", 3, 19, "low"),
-                            ("自由日", 3, 31, "low"), ("勝利日", 9, 8, "mid"),
-                            ("獨立紀念日", 9, 21, "mid"), ("共和國日", 12, 13, "mid")]),
+                            ("自由日", 3, 31, "low"), ("六月七日事件紀念日", 6, 7, "low"),
+                            ("勝利日", 9, 8, "mid"), ("獨立紀念日", 9, 21, "mid"),
+                            ("聖母無染原罪日", 12, 8, "mid"), ("共和國日", 12, 13, "mid")]),
     "CY": S(n=[("元旦", 1, 1, "mid"), ("主顯節", 1, 6, "mid"), ("希臘獨立日", 3, 25, "mid"),
                ("賽普勒斯國家日", 4, 1, "mid"), ("勞動節", 5, 1, "mid"),
                ("聖母升天日", 8, 15, "mid"), ("獨立紀念日", 10, 1, "mid"),
-               ("說不日", 10, 28, "mid"), ("聖誕節", 12, 25, "high")],
+               ("說不日", 10, 28, "mid"), ("平安夜", 12, 24, "mid"),
+               ("聖誕節", 12, 25, "high")],
             x=lambda y: [H("綠色星期一", _oe(y, -48), travel="mid"),
                          H("東正教復活節連假", _oe(y, -2), _oe(y, 1), "high"),
                          H("聖靈降臨節", _oe(y, 50), travel="mid"),
@@ -561,7 +590,7 @@ SIMPLE.update({
                ("平安夜與聖誕節", 12, 24, "high"), ("除夕", 12, 31, "mid")],
             x=lambda y: [
                 H("復活節連假", _e(y, -3), _e(y, 1), "high"),
-                H("夏季第一天", nth_weekday(y, 4, 3, 3), travel="mid"),
+                H("夏季第一天", next_weekday_after(D(y, 4, 18), 3), travel="mid"),
                 H("耶穌升天節", _e(y, 39), travel="mid"),
                 H("聖靈降臨節", _e(y, 50), travel="mid"),
                 H("商人假日", nth_weekday(y, 8, 0, 1), travel="high",
@@ -634,7 +663,7 @@ SIMPLE.update({
     "AL": S(n=[("新年", 1, 1, "mid"), ("夏日節", 3, 14, "mid"), ("勞動節", 5, 1, "mid"),
                ("德蕾莎修女日", 9, 5, "low"), ("獨立紀念日", 11, 28, "mid"),
                ("解放日", 11, 29, "mid"), ("聖誕節", 12, 25, "mid")],
-            x=lambda y: [H("諾魯茲", PERSIAN[y], days(PERSIAN[y], 2), "mid"),
+            x=lambda y: [H("蘇丹諾魯茲節", D(y, 3, 22), travel="mid"),
                          H("復活節", _e(y, 0), travel="mid"),
                          H("東正教復活節", _oe(y, 0), travel="mid"),
                          H("開齋節", ISLAMIC[y]["fitr"], travel="mid", approx=True),
@@ -699,7 +728,8 @@ SIMPLE.update({
     "EC": S("latin", n=[("獨立紀念日", 8, 10, "mid"), ("瓜亞基爾獨立日", 10, 9, "mid"),
                         ("亡靈節", 11, 2, "mid"), ("基多建城日", 12, 6, "low")],
             x=lambda y: [H("嘉年華", _e(y, -48), _e(y, -47), "high")]),
-    "PE": S("latin", n=[("聖彼得與聖保羅日", 6, 29, "mid"), ("獨立紀念日", 7, 28, "high"),
+    "PE": S("latin", n=[("聖彼得與聖保羅日", 6, 29, "mid"), ("胡寧戰役紀念日", 8, 6, "mid"),
+                        ("獨立紀念日", 7, 28, "high"),
                         ("國家日", 7, 29, "high"), ("聖羅莎日", 8, 30, "mid"),
                         ("安加莫斯戰役日", 10, 8, "low"), ("諸聖節", 11, 1, "mid"),
                         ("聖母無染原罪日", 12, 8, "mid")]),
@@ -941,7 +971,25 @@ def kr(y):
 @country("TW")
 def tw(y):
     L = LUNAR[y]
-    o = lambda x: observe(x, "tw")
+    # 台灣的補假若撞到另一個假日要再往後順延（2027 的兒童節就是這個情形），
+    # 所以先把「本來就在平日」的假日佔位，再安排需要補假的。
+    fixed = {
+        "開國紀念日": D(y, 1, 1), "和平紀念日": D(y, 2, 28), "兒童節": D(y, 4, 4),
+        "清明節": L["qingming"], "勞動節": D(y, 5, 1), "端午節": L["dragon"],
+        "中秋節": L["midautumn"], "教師節": D(y, 9, 28), "國慶日": D(y, 10, 10),
+        "台灣光復節": D(y, 10, 25), "行憲紀念日": D(y, 12, 25),
+    }
+    used = set(x for x in fixed.values() if x.weekday() < 5)
+
+    def o(x):
+        if x.weekday() < 5:
+            return x
+        placed = observe(x, "tw")
+        while placed in used or placed.weekday() >= 5:
+            placed = days(placed, 1)
+        used.add(placed)
+        return placed
+
     # 春節：除夕前一日至初三，逢週末往後補假
     start, end = days(L["nye"], -1), days(L["cny"], 2)
     weekend_in = sum(1 for i in range((end - start).days + 1)
@@ -951,27 +999,43 @@ def tw(y):
         cur = days(cur, 1)
         while cur.weekday() >= 5:
             cur = days(cur, 1)
-    out = [
-        H("開國紀念日", o(D(y, 1, 1)), travel="mid"),
-        H("農曆春節", start, cur, "high", closed=True, note="台灣最長連假；初一到初三不少餐廳與小店休息"),
-        H("和平紀念日", o(D(y, 2, 28)), travel="mid"),
-        H("兒童節", o(D(y, 4, 4)), travel="mid"),
-        H("清明節", o(L["qingming"]), travel="mid"),
-        H("勞動節", o(D(y, 5, 1)), travel="mid"),
-        H("端午節", o(L["dragon"]), travel="mid"),
-        H("中秋節", o(L["midautumn"]), travel="mid"),
-        H("教師節", o(D(y, 9, 28)), travel="mid"),
-        H("國慶日", o(D(y, 10, 10)), travel="mid"),
-        H("台灣光復節", o(D(y, 10, 25)), travel="mid"),
-        H("行憲紀念日", o(D(y, 12, 25)), travel="mid"),
-    ]
+    out = [H("農曆春節", start, cur, "high", closed=True,
+             note="台灣最長連假；初一到初三不少餐廳與小店休息")]
+    # 清明節要排在兒童節之前，兒童節的補假才會正確順延（2027 就是這個情形）
+    for name in ["開國紀念日", "和平紀念日", "清明節", "兒童節", "勞動節", "端午節",
+                 "中秋節", "教師節", "國慶日", "台灣光復節", "行憲紀念日"]:
+        out.append(H(name, o(fixed[name]), travel="mid"))
+
+    # 次年元旦逢週六時，補假會落在今年年底（例如 2027/12/31）
+    if D(y + 1, 1, 1).weekday() == 5:
+        out.append(H("開國紀念日（補假）", D(y, 12, 31), travel="mid"))
     return out
 
 
 @country("HK")
 def hk(y):
     L, e = LUNAR[y], easter(y)
-    o = lambda x: observe(x, "sun_to_mon")
+    # 香港的補假若撞到另一個公眾假期要再往後順延。2026 年清明逢週日、
+    # 補假又碰上復活節星期一，官方因此加放 4/7。
+    taken = set()
+    for i in range(3):
+        taken.add(days(L["cny"], i))
+    for i in range(-2, 2):
+        taken.add(days(e, i))
+    for fx in (D(y, 1, 1), D(y, 5, 1), L["dragon"], D(y, 7, 1),
+               days(L["midautumn"], 1), D(y, 10, 1), D(y, 12, 25), D(y, 12, 26)):
+        if fx.weekday() != 6:
+            taken.add(fx)
+
+    def o(x):
+        if x.weekday() != 6:      # 香港只有逢週日才補假
+            return x
+        placed = days(x, 1)
+        while placed in taken or placed.weekday() == 6:
+            placed = days(placed, 1)
+        taken.add(placed)
+        return placed
+
     cny_end = days(L["cny"], 2)
     if any((days(L["cny"], i)).weekday() == 6 for i in range(3)):
         cny_end = days(cny_end, 1)
@@ -991,13 +1055,19 @@ def hk(y):
     ]
 
 
+# 冬至（澳門的法定假期，日期為當年冬至）
+MO_DONGZHI = {2026: d("2026-12-21"), 2027: d("2027-12-22")}
+
+
 @country("MO")
 def mo(y):
-    L = LUNAR[y]
+    L, e = LUNAR[y], easter(y)
     o = lambda x: observe(x, "sun_to_mon")
     return [
         H("元旦", o(D(y, 1, 1)), travel="mid"),
-        H("農曆新年", L["cny"], days(L["cny"], 2), "high"),
+        H("農曆新年", days(L["nye"], -1), days(L["cny"], 2), "high",
+          note="除夕下午起放假，賭場與商圈人潮最多"),
+        H("耶穌受難日與復活節", days(e, -2), days(e, -1), "mid"),
         H("清明節", o(L["qingming"]), travel="low"),
         H("勞動節", o(D(y, 5, 1)), travel="mid"),
         H("佛誕", o(L["buddha"]), travel="low"),
@@ -1006,40 +1076,65 @@ def mo(y):
         H("國慶日", D(y, 10, 1), D(y, 10, 2), "mid"),
         H("重陽節", o(L["chongyang"]), travel="low"),
         H("追思節", D(y, 11, 2), travel="low"),
-        H("聖誕節", D(y, 12, 24), D(y, 12, 25), "mid"),
+        H("聖母無原罪瞻禮", D(y, 12, 8), travel="low"),
+        H("澳門特區成立紀念日", D(y, 12, 20), travel="mid"),
+        H("冬至", MO_DONGZHI[y], travel="low"),
+        H("聖誕節前日與聖誕節", D(y, 12, 24), D(y, 12, 25), "mid"),
     ]
+
+
+# 東南亞（新馬印）官方公告的開齋節日期。當地依觀月判定，會比通式晚一天。
+SEA_FITR = {2026: d("2026-03-21"), 2027: d("2027-03-10")}
+
+
+def sun_pair(x):
+    """逢週日的假期：當天照放，隔週一補假。回傳 (起, 迄)。"""
+    return (x, days(x, 1)) if x.weekday() == 6 else (x, x)
 
 
 @country("SG")
 def sg(y):
     L, I, e = LUNAR[y], ISLAMIC[y], easter(y)
-    o = lambda x: observe(x, "sun_to_mon")
-    return [
-        H("元旦", o(D(y, 1, 1)), travel="mid"),
-        H("農曆新年", L["cny"], days(L["cny"], 1), "high"),
-        H("開齋節", o(I["fitr"]), travel="mid", approx=True),
-        H("耶穌受難日", days(e, -2), travel="mid"),
-        H("勞動節", o(D(y, 5, 1)), travel="mid"),
-        H("衛塞節", o(L["vesak"]), travel="low"),
-        H("哈芝節", o(I["adha"]), travel="low", approx=True),
-        H("國慶日", o(D(y, 8, 9)), travel="mid"),
-        H("屠妖節", o(L["deepavali"]), travel="low"),
-        H("聖誕節", o(D(y, 12, 25)), travel="mid"),
-    ]
+    out = []
+
+    def add(name, day, travel="low", approx=False, note=None):
+        a, b = sun_pair(day)
+        out.append(H(name, a, b, travel, approx=approx, note=note))
+
+    add("元旦", D(y, 1, 1), "mid")
+    out.append(H("農曆新年", L["cny"], days(L["cny"], 1), "high"))
+    add("開齋節", SEA_FITR[y], "mid", approx=True)
+    out.append(H("耶穌受難日", days(e, -2), travel="mid"))
+    add("勞動節", D(y, 5, 1), "mid")
+    add("衛塞節", L["vesak"])
+    add("哈芝節", I["adha"], approx=True)
+    add("國慶日", D(y, 8, 9), "mid")
+    add("屠妖節", L["deepavali"])
+    add("聖誕節", D(y, 12, 25), "mid")
+    return out
 
 
 @country("MY")
 def my(y):
-    L, I = LUNAR[y], ISLAMIC[y]
+    L, I, F = LUNAR[y], ISLAMIC[y], SEA_FITR[y]
     o = lambda x: observe(x, "sun_to_mon")
+    agong = nth_weekday(y, 6, 0, 1)
+    vesak_sub = L["vesak"]
+    if vesak_sub.weekday() == 6:
+        vesak_sub = days(vesak_sub, 1)
+        if vesak_sub == agong:
+            vesak_sub = days(vesak_sub, 1)
     return [
         H("元旦", o(D(y, 1, 1)), travel="mid"),
         H("農曆新年", L["cny"], days(L["cny"], 1), "high"),
-        H("開齋節（Hari Raya Aidilfitri）", days(I["fitr"], -1), days(I["fitr"], 2),
+        H("開齋節（Hari Raya Aidilfitri）", days(F, -1), days(F, 2),
           "high", approx=True, closed=True, note="馬來西亞最大返鄉與旅遊潮，商店多歇業"),
         H("勞動節", o(D(y, 5, 1)), travel="mid"),
-        H("衛塞節", o(L["vesak"]), travel="low"),
-        H("最高元首誕辰", nth_weekday(y, 6, 0, 1), travel="low"),
+        # 衛塞節逢週日補假，但若補假日撞上最高元首誕辰要再順延（2026 即為此例）
+        H("衛塞節", L["vesak"], vesak_sub, "low"),
+        H("最高元首誕辰", agong, travel="low"),
+        H("伊斯蘭新年", I["newyear"], travel="low", approx=True),
+        H("先知誕辰", I["mawlid"], travel="low", approx=True),
         H("哈芝節（Hari Raya Haji）", I["adha"], days(I["adha"], 1), "mid", approx=True),
         H("國慶日", o(D(y, 8, 31)), travel="mid"),
         H("馬來西亞日", o(D(y, 9, 16)), travel="mid"),
@@ -1051,24 +1146,39 @@ def my(y):
 @country("TH")
 def th(y):
     L, T = LUNAR[y], TH_LUNAR[y]
-    o = lambda x: observe(x, "sun_to_mon")
-    return [
-        H("元旦", D(y, 1, 1), o(D(y, 1, 1)), "mid"),
-        H("萬佛節", o(T["makha"]), travel="low"),
-        H("卻克里王朝紀念日", o(D(y, 4, 6)), travel="low"),
-        H("宋干節（潑水節）", D(y, 4, 13), D(y, 4, 15), "high",
-          note="泰國新年，全國移動、班機與飯店最滿"),
-        H("勞動節", o(D(y, 5, 1)), travel="mid"),
-        H("加冕紀念日", o(D(y, 5, 4)), travel="low"),
-        H("衛塞節", o(L["vesak"]), travel="low"),
-        H("三寶佛節與守夏節", T["asalha"], days(T["asalha"], 1), "mid"),
-        H("王太后誕辰（母親節）", o(D(y, 8, 12)), travel="mid"),
-        H("九世王逝世紀念日", o(D(y, 10, 13)), travel="low"),
-        H("五世王紀念日", o(D(y, 10, 23)), travel="low"),
-        H("國王誕辰（父親節）", o(D(y, 12, 5)), travel="mid"),
-        H("行憲紀念日", o(D(y, 12, 10)), travel="low"),
-        H("跨年", D(y, 12, 31), travel="high"),
-    ]
+    out, taken = [], set()
+
+    def add(name, day, travel="low", note=None):
+        """泰國假日逢週末會補到下一個工作日，補假日與當天都要算。"""
+        end = day
+        if day.weekday() >= 5:
+            end = days(day, 1)
+            while end.weekday() >= 5 or end in taken:
+                end = days(end, 1)
+            taken.add(end)
+        else:
+            taken.add(day)
+        out.append(H(name, day, end, travel, note=note))
+
+    out.append(H("元旦假期", D(y, 1, 1), D(y, 1, 2), "mid",
+                 note="內閣通常會加放 1/2 讓跨年假期連起來"))
+    add("萬佛節", T["makha"])
+    add("卻克里王朝紀念日", D(y, 4, 6))
+    out.append(H("宋干節（潑水節）", D(y, 4, 13), D(y, 4, 15), "high",
+                 note="泰國新年，全國移動、班機與飯店最滿"))
+    add("勞動節", D(y, 5, 1), "mid")
+    add("加冕紀念日", D(y, 5, 4))
+    add("衛塞節", L["vesak"])
+    add("王后誕辰", D(y, 6, 3))
+    add("國王誕辰", D(y, 7, 28), "mid")
+    out.append(H("三寶佛節與守夏節", T["asalha"], days(T["asalha"], 1), "mid"))
+    add("王太后誕辰（母親節）", D(y, 8, 12), "mid")
+    add("九世王逝世紀念日", D(y, 10, 13))
+    add("五世王紀念日", D(y, 10, 23))
+    add("先王誕辰與父親節", D(y, 12, 5), "mid")
+    add("行憲紀念日", D(y, 12, 10))
+    out.append(H("跨年", D(y, 12, 31), travel="high"))
+    return out
 
 
 @country("VN")
@@ -1076,33 +1186,37 @@ def vn(y):
     L = LUNAR[y]
     return [
         H("元旦", D(y, 1, 1), travel="mid"),
-        H("春節（Tết）", days(L["nye"], -2), days(L["cny"], 4), "high", approx=True, closed=True,
+        H("春節（Tết）", days(L["nye"], -2), days(L["cny"], 5), "high", approx=True, closed=True,
           note="越南最大長假，全國停擺、返鄉與出國潮；多數店家關門近一週"),
-        H("雄王紀念日", VN_HUNG[y], travel="low"),
-        H("南方解放日與勞動節", D(y, 4, 30), D(y, 5, 1), "high", approx=True,
-          note="常與週末串成 4~5 天連假"),
-        H("國慶日", D(y, 9, 2), days(D(y, 9, 2), 1), "mid", approx=True),
+        H("雄王紀念日", VN_HUNG[y],
+          days(VN_HUNG[y], 1) if VN_HUNG[y].weekday() == 6 else VN_HUNG[y], "low"),
+        H("南方解放日與勞動節", D(y, 4, 30), D(y, 5, 3), "high", approx=True,
+          note="政府通常會調休成 4~5 天連假"),
+        H("國慶日", D(y, 9, 2), days(D(y, 9, 2), 2), "mid", approx=True),
     ]
 
 
 @country("ID")
 def idn(y):
-    I, L, e = ISLAMIC[y], LUNAR[y], easter(y)
+    I, L, e, F = ISLAMIC[y], LUNAR[y], easter(y), SEA_FITR[y]
     return [
         H("元旦", D(y, 1, 1), travel="mid"),
-        H("農曆新年", L["cny"], travel="mid"),
-        H("靜居日（Nyepi）", ID_NYEPI[y], travel="mid", closed=True,
+        H("先知夜行登霄日", days(I["ramadan"], -33), travel="low", approx=True),
+        H("農曆新年與共同假期", days(L["cny"], -1), L["cny"], "mid"),
+        H("靜居日（Nyepi）與共同假期", days(ID_NYEPI[y], -1), ID_NYEPI[y], "mid", closed=True,
           note="峇里島全島停擺，機場關閉一整天，旅館不得外出"),
-        H("開齋節與共同假期", days(I["fitr"], -3), days(I["fitr"], 4), "high", approx=True, closed=True,
+        H("開齋節與共同假期", days(F, -1), days(F, 3), "high", approx=True, closed=True,
           note="Mudik 返鄉潮，東南亞航線最擁擠的期間之一；當地商店大量歇業"),
-        H("耶穌受難日", days(e, -2), travel="low"),
+        H("耶穌受難日與復活節", days(e, -2), e, "low"),
         H("勞動節", D(y, 5, 1), travel="mid"),
+        H("耶穌升天日與共同假期", days(e, 39), days(e, 40), "low"),
+        H("宰牲節與共同假期", I["adha"], days(I["adha"], 1), "mid", approx=True),
         H("衛塞節", L["vesak"], travel="low"),
-        H("耶穌升天日", days(e, 39), travel="low"),
         H("潘查希拉日", D(y, 6, 1), travel="low"),
-        H("宰牲節", I["adha"], days(I["adha"], 1), "mid", approx=True),
+        H("伊斯蘭新年", I["newyear"], travel="low", approx=True),
         H("獨立紀念日", D(y, 8, 17), travel="mid"),
-        H("聖誕節", D(y, 12, 25), D(y, 12, 26), "mid"),
+        H("先知誕辰", I["mawlid"], travel="low", approx=True),
+        H("聖誕節與共同假期", D(y, 12, 24), D(y, 12, 25), "mid"),
     ]
 
 
@@ -1119,9 +1233,10 @@ def ph(y):
         H("獨立紀念日", D(y, 6, 12), travel="mid"),
         H("開齋節", I["fitr"], travel="low", approx=True),
         H("國家英雄日", nth_weekday(y, 8, 0, -1), travel="mid"),
-        H("諸聖節", D(y, 11, 1), D(y, 11, 2), "mid"),
+        H("諸聖節與追思亡者日", D(y, 11, 1), D(y, 11, 2), "mid"),
         H("博尼法秀日", D(y, 11, 30), travel="low"),
-        H("聖誕節", D(y, 12, 24), D(y, 12, 26), "high"),
+        H("聖母無染原罪日", D(y, 12, 8), travel="low"),
+        H("平安夜與聖誕節", D(y, 12, 24), D(y, 12, 25), "high"),
         H("黎剎日與跨年", D(y, 12, 30), D(y, 12, 31), "high"),
     ]
 
@@ -1133,7 +1248,7 @@ def ind(y):
         H("共和國日", D(y, 1, 26), travel="mid"),
         H("荷麗節（Holi）", L["holi"], days(L["holi"], 1), "mid"),
         H("耶穌受難日", days(e, -2), travel="low"),
-        H("開齋節", I["fitr"], travel="mid", approx=True),
+        H("開齋節", SEA_FITR[y], travel="mid", approx=True),
         H("宰牲節", I["adha"], travel="low", approx=True),
         H("獨立紀念日", D(y, 8, 15), travel="mid"),
         H("甘地誕辰", D(y, 10, 2), travel="mid"),
@@ -1276,7 +1391,8 @@ def es(y):
     return [
         H("元旦", D(y, 1, 1), travel="mid"),
         H("主顯節", D(y, 1, 6), travel="mid"),
-        H("聖週（Semana Santa）", days(e, -7), e, "high",
+        H("耶穌受難日", days(e, -2), travel="high"),
+        H("聖週（Semana Santa）", days(e, -7), e, "high", kind="season",
           note="西班牙最大出遊週，全國飯店與火車一位難求"),
         H("勞動節", D(y, 5, 1), travel="mid"),
         H("聖母升天日", D(y, 8, 15), travel="mid"),
@@ -1349,7 +1465,7 @@ def pl(y):
         H("聖母升天日", D(y, 8, 15), travel="mid"),
         H("諸聖節", D(y, 11, 1), travel="mid"),
         H("獨立紀念日", D(y, 11, 11), travel="mid"),
-        H("聖誕節", D(y, 12, 25), D(y, 12, 26), "high"),
+        H("聖誕假期", D(y, 12, 24), D(y, 12, 26), "high"),
     ]
 
 
@@ -1371,7 +1487,7 @@ def se(y):
         H("五一勞動節", D(y, 5, 1), travel="mid"),
         H("耶穌升天節", c["ascension"], travel="high"),
         H("國慶日", D(y, 6, 6), travel="mid"),
-        H("仲夏節", days(midsummer, -1), midsummer, "high"),
+        H("仲夏節前夕與仲夏節", midsummer, days(midsummer, 1), "high"),
         H("諸聖節", all_saints, travel="low"),
         H("聖誕節", D(y, 12, 24), D(y, 12, 26), "high"),
         H("工業休假月", D(y, 7, 1), D(y, 7, 31), "high", kind="season",
@@ -1431,11 +1547,15 @@ def ru(y):
         H("新年假期", D(y, 1, 1), D(y, 1, 8), "high",
           note="俄羅斯最長假期，東南亞海島與滑雪場人潮明顯增加"),
         H("祖國保衛者日", D(y, 2, 23), travel="mid"),
-        H("國際婦女節", D(y, 3, 8), travel="mid"),
+        H("國際婦女節", D(y, 3, 8),
+          days(D(y, 3, 8), 1) if D(y, 3, 8).weekday() >= 5 else D(y, 3, 8), "mid"),
         H("春天與勞動節", D(y, 5, 1), D(y, 5, 3), "high"),
-        H("勝利日", D(y, 5, 9), travel="mid"),
+        H("勝利日", D(y, 5, 9),
+          days(D(y, 5, 9), 2) if D(y, 5, 9).weekday() == 5 else
+          (days(D(y, 5, 9), 1) if D(y, 5, 9).weekday() == 6 else D(y, 5, 9)), "mid"),
         H("俄羅斯日", D(y, 6, 12), travel="mid"),
         H("民族團結日", D(y, 11, 4), travel="mid"),
+        H("跨年調休日", D(y, 12, 31), travel="mid", approx=True),
     ]
 
 
@@ -1473,6 +1593,7 @@ def ca(y):
         H("維多利亞日", victoria, travel="mid"),
         H("加拿大日", D(y, 7, 1), travel="mid"),
         H("勞動節", nth_weekday(y, 9, 0, 1), travel="high"),
+        H("真相與和解日", D(y, 9, 30), travel="low"),
         H("感恩節", nth_weekday(y, 10, 0, 2), travel="mid"),
         H("國殤紀念日", D(y, 11, 11), travel="low"),
         H("聖誕節與節禮日", D(y, 12, 25), D(y, 12, 26), "high"),
@@ -1486,7 +1607,9 @@ def mx(y):
         H("元旦", D(y, 1, 1), travel="mid"),
         H("行憲紀念日", nth_weekday(y, 2, 0, 1), travel="mid"),
         H("華雷斯誕辰", nth_weekday(y, 3, 0, 3), travel="mid"),
-        H("聖週", days(e, -7), e, "high", note="墨西哥全國度假週，海灘度假區客滿"),
+        H("耶穌受難日", days(e, -2), travel="high"),
+        H("聖週", days(e, -7), e, "high", kind="season",
+          note="墨西哥全國度假週，海灘度假區客滿"),
         H("勞動節", D(y, 5, 1), travel="mid"),
         H("獨立紀念日", D(y, 9, 16), travel="mid"),
         H("亡靈節", D(y, 11, 2), travel="mid"),
@@ -1501,7 +1624,7 @@ def br(y):
     e = easter(y)
     return [
         H("元旦", D(y, 1, 1), travel="mid"),
-        H("嘉年華", days(e, -48), days(e, -46), "high",
+        H("嘉年華", days(e, -48), days(e, -47), "high",
           note="巴西全國停擺，國內外旅遊需求爆量"),
         H("耶穌受難日", days(e, -2), travel="high"),
         H("蒂拉登特斯日", D(y, 4, 21), travel="mid"),
@@ -1560,7 +1683,7 @@ def ae(y):
     return [
         H("元旦", D(y, 1, 1), travel="mid"),
         H("開齋節", days(I["fitr"], -1), days(I["fitr"], 2), "high", approx=True),
-        H("阿拉法特日與宰牲節", days(I["adha"], -1), days(I["adha"], 2), "high", approx=True),
+        H("阿拉法特日與宰牲節", days(I["adha"], -2), days(I["adha"], 2), "high", approx=True),
         H("伊斯蘭新年", days(I["adha"], 21), travel="low", approx=True),
         H("先知誕辰", days(I["adha"], 80), travel="low", approx=True),
         H("烈士日與國慶日", D(y, 12, 1), D(y, 12, 3), "high"),
@@ -1652,7 +1775,8 @@ def main():
     countries, holidays = [], {}
     for code, name, en, flag, region, weight, closure in COUNTRIES:
         meta = {"code": code, "name": name, "en": en, "flag": flag,
-                "region": region, "weight": weight, "closure": closure}
+                "region": region, "weight": weight, "closure": closure,
+                "verified": code in VERIFIED}
         if code in WEEKENDS:
             meta["weekend"] = WEEKENDS[code]
         countries.append(meta)
@@ -1679,8 +1803,8 @@ def main():
     total = sum(len(v) for v in holidays.values())
     detailed = sum(1 for c, *_ in COUNTRIES if c in BUILDERS)
     print(f"寫入 {out}：{len(countries)} 個國家（{detailed} 個專屬定義 / "
-          f"{len(countries) - detailed} 個範本）、{total} 筆假期、"
-          f"{out.stat().st_size / 1024:.0f} KB")
+          f"{len(countries) - detailed} 個範本，{len(VERIFIED)} 個已逐一核對）、"
+          f"{total} 筆假期、{out.stat().st_size / 1024:.0f} KB")
 
 
 if __name__ == "__main__":

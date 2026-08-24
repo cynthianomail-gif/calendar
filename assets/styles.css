@@ -578,3 +578,13 @@ select#destination:focus { border-color: var(--accent); }
   transition: border-color .16s, background-color .16s;
 }
 .more-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+
+/* 資料核對狀態標示 */
+.cname { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vtag {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .04em;
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+}
+.vtag.ok { background: color-mix(in srgb, var(--lv0) 18%, transparent); color: var(--lv0); }
+.vtag.tpl { background: var(--surface-2); color: var(--muted); }
+.closure.tpl::before { background: var(--muted); }

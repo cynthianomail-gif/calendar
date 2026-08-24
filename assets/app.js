@@ -535,6 +535,11 @@
     var body = $("dest-body");
     clear(body);
 
+    if (!c.verified) {
+      body.appendChild(noteLine("tpl",
+        c.name + "的假期是以節期範本產生的，尚未逐一對照官方公告，"
+        + "主要假期應該都有，但可能漏掉地方性或次要的假日。"));
+    }
     if (!localParts.length) {
       body.appendChild(el("p", "empty",
         "這段期間" + c.name + "沒有國定假日，商店與景點照常營運。"));
@@ -728,7 +733,11 @@
         var sum = el("summary");
         sum.appendChild(el("span", "flag", c.flag));
         var grow = el("div", "grow");
-        grow.appendChild(el("b", null, c.name));
+        var head = el("div", "cname");
+        head.appendChild(el("b", null, c.name));
+        head.appendChild(el("span", c.verified ? "vtag ok" : "vtag tpl",
+          c.verified ? "已核對" : "範本產生"));
+        grow.appendChild(head);
         grow.appendChild(el("small", null,
           y + " 年 " + entries.length + " 個假期・" + runList.length + " 段 3 天以上連假"));
         sum.appendChild(grow);
@@ -904,6 +913,8 @@
 
   function initFooter() {
     $("stat-countries").textContent = DATA.countries.length;
+    $("stat-verified").textContent =
+      DATA.countries.filter(function (c) { return c.verified; }).length;
     $("stat-years").textContent = DATA.years.join("、");
     $("stat-generated").textContent = DATA.generated;
   }
