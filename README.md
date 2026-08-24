@@ -3,7 +3,8 @@
 查全球 40 個國家的國定假日，看看你打算出國的那幾天，**有沒有其他國家正在放連假**——
 那通常代表機票變貴、飯店變滿、景點排隊變長。
 
-純靜態網站，手機優先設計，所有計算都在瀏覽器裡完成，**不需要後端、不打任何外部 API、離線也能用**。
+純靜態網站，手機優先設計，所有計算都在瀏覽器裡完成，**不需要後端、不打任何 API**。
+（唯一的外部請求是數字用的 Google Font，載不到就退回系統等寬字型，離線一樣能用。）
 
 ## 三個檢視
 
@@ -66,6 +67,7 @@ assets/app.js              全部邏輯：連假偵測、擁擠指數、三個�
 data/holidays.json         假期資料（正本）
 data/holidays.js           同上，包成 window.HOLIDAY_DATA 供頁面載入
 dist/index.html            全部內嵌的單檔版，可直接傳給別人或離線使用
+dist/artifact.html         同上但不含 html/head/body 外殼，給自帶外層的環境用
 scripts/build_holidays.py  假期資料產生器
 scripts/build_site.py      打包腳本
 ```

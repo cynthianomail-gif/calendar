@@ -11,6 +11,10 @@
   --shadow: 0 1px 2px rgba(20, 30, 60, .06), 0 8px 24px rgba(20, 30, 60, .07);
   --radius: 16px;
 
+  --font-text: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC",
+               "PingFang TC", "Microsoft JhengHei", Roboto, "Helvetica Neue", sans-serif;
+  --font-num: "DM Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
   --lv0: #2f9e6e;
   --lv1: #a9b431;
   --lv2: #e0972a;
@@ -18,24 +22,43 @@
   --lv4: #d33b4d;
 }
 
+/* 深色配色定義兩次：一次給「跟隨系統」，一次給明確選擇深色的情況 */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0d1220;
-    --surface: #151d31;
-    --surface-2: #1d2740;
-    --text: #e8edf9;
-    --muted: #96a3c2;
-    --line: #27314c;
-    --accent: #8b9dff;
-    --accent-soft: #222c4d;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 26px rgba(0, 0, 0, .35);
+  :root:not([data-theme="light"]) {
+  --bg: #0d1220;
+  --surface: #151d31;
+  --surface-2: #1d2740;
+  --text: #e8edf9;
+  --muted: #96a3c2;
+  --line: #27314c;
+  --accent: #8b9dff;
+  --accent-soft: #222c4d;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 26px rgba(0, 0, 0, .35);
 
-    --lv0: #35b57e;
-    --lv1: #b9c53c;
-    --lv2: #eaa63a;
-    --lv3: #ef7a44;
-    --lv4: #f0596a;
+  --lv0: #35b57e;
+  --lv1: #b9c53c;
+  --lv2: #eaa63a;
+  --lv3: #ef7a44;
+  --lv4: #f0596a;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0d1220;
+  --surface: #151d31;
+  --surface-2: #1d2740;
+  --text: #e8edf9;
+  --muted: #96a3c2;
+  --line: #27314c;
+  --accent: #8b9dff;
+  --accent-soft: #222c4d;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 26px rgba(0, 0, 0, .35);
+
+  --lv0: #35b57e;
+  --lv1: #b9c53c;
+  --lv2: #eaa63a;
+  --lv3: #ef7a44;
+  --lv4: #f0596a;
 }
 
 * { box-sizing: border-box; }
@@ -50,9 +73,9 @@ body {
   padding: 0 0 max(24px, env(safe-area-inset-bottom));
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC",
-               "PingFang TC", "Microsoft JhengHei", Roboto, "Helvetica Neue", sans-serif;
+  font-family: var(--font-text);
   font-size: 16px;
+  font-variant-numeric: tabular-nums;
   line-height: 1.6;
   overflow-x: hidden;
 }
@@ -117,7 +140,7 @@ main { max-width: 880px; margin: 0 auto; padding: 14px 12px 0; }
 /* ---------------------------------------------------------- 表單 */
 .field-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .field { flex: 1 1 140px; display: block; min-width: 0; }
-.field-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+.field-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; letter-spacing: .06em; }
 
 input[type="date"], input[type="search"] {
   width: 100%;
@@ -173,7 +196,7 @@ input:focus-visible, .tab:focus-visible, .chip:focus-visible,
   border-radius: 50%; background: var(--surface);
 }
 .gauge > * { position: relative; }
-.gauge span { display: block; font-size: 28px; font-weight: 700; line-height: 1; }
+.gauge span { display: block; font-family: var(--font-num); font-size: 30px; font-weight: 500; line-height: 1; letter-spacing: -1px; }
 .gauge small { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
 .score-text { min-width: 0; }
 .score-text strong { display: block; font-size: 18px; }
@@ -195,7 +218,7 @@ input:focus-visible, .tab:focus-visible, .chip:focus-visible,
   min-height: 56px;
 }
 .day.pad { visibility: hidden; }
-.day b { font-size: 14px; font-weight: 700; line-height: 1; }
+.day b { font-family: var(--font-num); font-size: 14px; font-weight: 500; line-height: 1; }
 .day em { font-style: normal; font-size: 10px; color: var(--muted); }
 .day .bar { width: 70%; height: 5px; border-radius: 3px; background: var(--lv0); margin-top: auto; }
 .day.wknd em { color: var(--lv3); }
@@ -247,12 +270,13 @@ input:focus-visible, .tab:focus-visible, .chip:focus-visible,
 .sugg small { color: var(--muted); font-size: 12.5px; }
 .sugg .pill {
   flex: 0 0 auto; min-width: 52px; text-align: center;
-  padding: 5px 9px; border-radius: 10px; color: #fff; font-weight: 700; font-size: 14px;
+  padding: 5px 9px; border-radius: 10px; color: #fff;
+  font-family: var(--font-num); font-weight: 500; font-size: 15px;
 }
 
 /* ---------------------------------------------------------- 月曆 */
 .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.month-nav strong { font-size: 17px; }
+.month-nav strong { font-family: var(--font-num); font-size: 17px; font-weight: 500; letter-spacing: .3px; }
 .iconbtn {
   width: 42px; height: 42px; border-radius: 12px;
   border: 1px solid var(--line); background: var(--surface-2);
@@ -270,7 +294,7 @@ input:focus-visible, .tab:focus-visible, .chip:focus-visible,
   font-size: 13px; overflow: hidden;
 }
 .mday.pad { visibility: hidden; }
-.mday .n { font-weight: 700; line-height: 1.1; }
+.mday .n { font-family: var(--font-num); font-weight: 500; line-height: 1.1; }
 .mday .dot { width: 60%; height: 4px; border-radius: 2px; margin-top: auto; }
 .mday .fl { font-size: 11px; line-height: 1.2; min-height: 13px; letter-spacing: -1px; max-width: 100%; overflow: hidden; white-space: nowrap; }
 .mday.lv-bg0 { background: color-mix(in srgb, var(--lv0) 9%, var(--surface-2)); }

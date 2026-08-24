@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 把 data/holidays.json 包成瀏覽器可直接載入的 data/holidays.js，
-並產生 dist/index.html —— 一個把 CSS / JS / 資料全部內嵌的單檔版本，
-方便直接用 email 傳、或丟到任何靜態空間、甚至離線用瀏覽器開。
+並產生兩個內嵌全部 CSS / JS / 資料的單檔版本：
+
+* dist/index.html    —— 完整 HTML，可直接用瀏覽器開、email 傳、丟任何靜態空間
+* dist/artifact.html —— 同樣內容但省略 doctype/html/head/body 外殼，
+                        給需要自己包外層的環境（例如 Claude Artifact）使用
 
     python3 scripts/build_site.py
 """
@@ -35,7 +38,23 @@ def main():
     out_dir.mkdir(exist_ok=True)
     out = out_dir / "index.html"
     out.write_text(html, encoding="utf-8")
-    print(f"寫入 data/holidays.js 與 {out}（{out.stat().st_size/1024:.0f} KB 單檔版）")
+
+    # 去掉外殼版本：保留 <title>、字體連結與 <style>，其餘取 <body> 內容
+    head = html[html.index("<head>") + 6: html.index("</head>")]
+    keep = []
+    for line in head.splitlines():
+        st = line.strip()
+        if st.startswith("<title>") or st.startswith("<link rel=\"preconnect\"") \
+           or st.startswith("<link rel=\"stylesheet\"") or st.startswith("<meta name=\"description\""):
+            keep.append(st)
+    style = head[head.index("<style>"): head.index("</style>") + 8]
+    body = html[html.index("<body>") + 6: html.rindex("</body>")].strip()
+    shell = "\n".join(keep) + "\n" + style + "\n" + body + "\n"
+    out2 = out_dir / "artifact.html"
+    out2.write_text(shell, encoding="utf-8")
+
+    print(f"寫入 data/holidays.js、{out}（{out.stat().st_size/1024:.0f} KB）"
+          f"與 {out2}（{out2.stat().st_size/1024:.0f} KB）")
 
 
 if __name__ == "__main__":
