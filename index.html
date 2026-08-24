@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2b3a8f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="查詢全球 40 個國家的國定假日與連假，看看你出國的那幾天有沒有其他國家正在放長假，避開人潮與旺季價格。">
+<title>全球連假雷達</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌏</text></svg>">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">🌏</span>
+    <div class="brand-text">
+      <h1>全球連假雷達</h1>
+      <p>出國前先看看，別跟全世界擠同一天</p>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="檢視模式">
+  <button class="tab is-active" role="tab" aria-selected="true" data-panel="trip">行程檢查</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="calendar">月曆</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="countries">各國假期</button>
+</nav>
+
+<main>
+  <!-- ============================================ 行程檢查 -->
+  <section class="panel" id="panel-trip">
+    <div class="card">
+      <div class="field-row">
+        <label class="field">
+          <span class="field-label">出發日</span>
+          <input type="date" id="start-date">
+        </label>
+        <label class="field">
+          <span class="field-label">回程日</span>
+          <input type="date" id="end-date">
+        </label>
+      </div>
+      <div class="chips" id="quick-ranges">
+        <button class="chip" data-len="3">3 天</button>
+        <button class="chip" data-len="5">5 天</button>
+        <button class="chip" data-len="7">7 天</button>
+        <button class="chip" data-len="10">10 天</button>
+        <button class="chip" data-len="14">14 天</button>
+      </div>
+      <details class="filters">
+        <summary>篩選比對的國家<span class="filter-count" id="filter-count"></span></summary>
+        <div class="chips" id="region-chips"></div>
+        <div class="filter-actions">
+          <button class="linkish" data-preset="all">全選</button>
+          <button class="linkish" data-preset="asia">只看亞洲</button>
+          <button class="linkish" data-preset="major">只看主要客源國</button>
+        </div>
+      </details>
+    </div>
+
+    <div class="card score-card" id="score-card">
+      <div class="score-main">
+        <div class="gauge" id="gauge"><span id="score-value">–</span><small>擁擠指數</small></div>
+        <div class="score-text">
+          <strong id="score-label">計算中…</strong>
+          <p id="score-desc"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>每日人潮預估</h2>
+      <p class="hint">點日期看當天有哪些國家在放假</p>
+      <div class="weekhead">
+        <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span>
+        <span class="wknd">六</span><span class="wknd">日</span>
+      </div>
+      <div class="daygrid" id="trip-days"></div>
+      <div class="legend">
+        <span><i class="lv0"></i>平穩</span>
+        <span><i class="lv1"></i>略多</span>
+        <span><i class="lv2"></i>擁擠</span>
+        <span><i class="lv3"></i>很擠</span>
+        <span><i class="lv4"></i>極擠</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>這段期間正在放假的國家</h2>
+      <div id="overlap-list"></div>
+    </div>
+
+    <div class="card">
+      <h2>比較不擠的日子</h2>
+      <p class="hint">在你選的日期前後 45 天內，同樣天數但人潮較少的選擇</p>
+      <div id="suggestions"></div>
+    </div>
+  </section>
+
+  <!-- ============================================ 月曆 -->
+  <section class="panel" id="panel-calendar" hidden>
+    <div class="card">
+      <div class="month-nav">
+        <button class="iconbtn" id="prev-month" aria-label="上個月">‹</button>
+        <strong id="month-title"></strong>
+        <button class="iconbtn" id="next-month" aria-label="下個月">›</button>
+      </div>
+      <div class="weekhead">
+        <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span>
+        <span class="wknd">六</span><span class="wknd">日</span>
+      </div>
+      <div class="monthgrid" id="month-grid"></div>
+      <div class="legend">
+        <span><i class="lv0"></i>平穩</span>
+        <span><i class="lv1"></i>略多</span>
+        <span><i class="lv2"></i>擁擠</span>
+        <span><i class="lv3"></i>很擠</span>
+        <span><i class="lv4"></i>極擠</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>本月重點連假與旺季</h2>
+      <div id="month-highlights"></div>
+    </div>
+  </section>
+
+  <!-- ============================================ 各國假期 -->
+  <section class="panel" id="panel-countries" hidden>
+    <div class="card">
+      <label class="field">
+        <span class="field-label">搜尋國家</span>
+        <input type="search" id="country-search" placeholder="例如：日本、Japan、JP" autocomplete="off">
+      </label>
+      <div class="chips" id="year-chips"></div>
+    </div>
+    <div id="country-list"></div>
+  </section>
+</main>
+
+<footer>
+  <p><strong>資料說明</strong></p>
+  <ul>
+    <li>涵蓋 <span id="stat-countries">–</span> 個國家、<span id="stat-years">–</span> 年度的國定假日，另加上「非法定但人潮明顯」的旅遊旺季（如日本盂蘭盆節、歐洲八月休假潮）。</li>
+    <li>標示 <span class="approx-tag">推估</span> 的假期依農曆或伊斯蘭曆推算，實際日期可能相差 1–2 天；中國、越南等國的調休安排每年由政府公告，此處為常見模式的估計。</li>
+    <li>擁擠指數是依「各國出境旅遊影響力 × 假期性質 × 連假長度」計算的相對參考值，不是實際旅客人數。</li>
+    <li><strong>訂票前請以各國官方公告的行事曆為準。</strong>資料產生日：<span id="stat-generated">–</span></li>
+  </ul>
+</footer>
+
+<div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+<aside class="sheet" id="day-sheet" hidden aria-modal="true" role="dialog">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <strong id="sheet-title"></strong>
+    <button class="iconbtn" id="sheet-close" aria-label="關閉">✕</button>
+  </div>
+  <div class="sheet-body" id="sheet-body"></div>
+</aside>
+
+<script src="data/holidays.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
