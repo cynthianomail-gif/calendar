@@ -413,7 +413,12 @@ input:focus-visible, select:focus-visible,
 }
 
 /* ---------------------------------------------------------------- 月曆 */
-.month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+/* 上方緊接著目的地選單，選單有實體邊框、視覺重量大，
+   間距要比一般段落再開一點才不會黏在一起 */
+.month-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 20px 0 16px;
+}
 .month-nav strong { font-size: 18px; letter-spacing: .04em; }
 .iconbtn {
   width: 38px; height: 38px; border-radius: 50%;
