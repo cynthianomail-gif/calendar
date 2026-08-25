@@ -54,16 +54,14 @@
       <div class="field-row airports" id="airports" hidden>
         <label class="field field-narrow">
           <span class="field-label">出發機場</span>
-          <input type="text" id="origin" placeholder="TPE" maxlength="3"
-                 autocomplete="off" spellcheck="false" aria-label="出發機場的 IATA 代碼">
+          <select id="origin" aria-label="出發機場"></select>
         </label>
         <span class="arrow" aria-hidden="true">→</span>
         <label class="field field-narrow">
           <span class="field-label">抵達機場</span>
-          <input type="text" id="arrival" placeholder="TYO" maxlength="3"
-                 autocomplete="off" spellcheck="false" aria-label="抵達機場的 IATA 代碼">
+          <select id="arrival" aria-label="抵達機場"></select>
         </label>
-        <span class="airports-note">查機票用，可自行改成要飛的機場</span>
+        <span class="airports-note">查機票用。抵達機場會列出該國的機場，可自行改。</span>
       </div>
       <div class="chips" id="quick-ranges">
         <button class="chip" data-len="3">3 天</button>

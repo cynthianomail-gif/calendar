@@ -1128,20 +1128,21 @@
     });
 
     var origin = $("origin"), arrival = $("arrival");
-    try {
-      origin.value = localStorage.getItem("hr.origin") || "TPE";
-      arrival.value = localStorage.getItem("hr.arrival") || "";
-    } catch (e) {
-      origin.value = "TPE";
-    }
-    [origin, arrival].forEach(function (inp) {
-      inp.addEventListener("input", function () {
-        inp.value = inp.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3);
-      });
-      inp.addEventListener("change", function () {
+    fillOriginSelect(origin);
+    var savedOrigin = "";
+    try { savedOrigin = localStorage.getItem("hr.origin") || ""; } catch (e) { /* 忽略 */ }
+    origin.value = savedOrigin || "TPE";
+    if (!origin.value) origin.value = "TPE";
+
+    [origin, arrival].forEach(function (sel) {
+      sel.addEventListener("change", function () {
         try {
           localStorage.setItem("hr.origin", origin.value);
-          localStorage.setItem("hr.arrival", arrival.value);
+          if (state.dest) {
+            var prefs = arrivalPrefs();
+            prefs[state.dest] = arrival.value;
+            localStorage.setItem("hr.arrivals", JSON.stringify(prefs));
+          }
         } catch (e) { /* 忽略 */ }
         renderShortlist();
         renderPickBar();
@@ -1150,7 +1151,38 @@
     syncAirports();
   }
 
-  // 目的地換了就把抵達機場帶成該國的主要門戶（使用者可以再改）
+  function arrivalPrefs() {
+    try {
+      return JSON.parse(localStorage.getItem("hr.arrivals") || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function airportOption(a) {
+    var o = el("option", null, a.c + "　" + a.n);
+    o.value = a.c;
+    return o;
+  }
+
+  // 出發機場列出所有國家的機場，台灣排最前面（多數使用者從這裡出發）
+  function fillOriginSelect(sel) {
+    clear(sel);
+    var list = DATA.countries.slice().sort(function (a, b) {
+      if (a.code === "TW") return -1;
+      if (b.code === "TW") return 1;
+      return REGIONS.indexOf(a.region) - REGIONS.indexOf(b.region) || b.weight - a.weight;
+    });
+    list.forEach(function (c) {
+      if (!c.airports || !c.airports.length) return;
+      var g = document.createElement("optgroup");
+      g.label = c.flag + " " + c.name;
+      c.airports.forEach(function (a) { g.appendChild(airportOption(a)); });
+      sel.appendChild(g);
+    });
+  }
+
+  // 目的地換了就重建抵達機場選單，預設選該國的主要門戶
   function syncAirports() {
     var row = $("airports"), arrival = $("arrival");
     if (!state.dest) {
@@ -1158,9 +1190,14 @@
       return;
     }
     row.hidden = false;
-    arrival.value = META[state.dest].gateway || "";
-    arrival.placeholder = META[state.dest].gateway || "機場";
-    try { localStorage.setItem("hr.arrival", arrival.value); } catch (e) { /* 忽略 */ }
+    var c = META[state.dest];
+    clear(arrival);
+    (c.airports || []).forEach(function (a) { arrival.appendChild(airportOption(a)); });
+
+    // 每個國家各記各的機場：在幾個目的地之間來回切換也不會忘
+    var saved = arrivalPrefs()[state.dest] || "";
+    var inThisCountry = (c.airports || []).some(function (a) { return a.c === saved; });
+    arrival.value = inThisCountry ? saved : (c.gateway || "");
   }
 
   /* -------------------------------------------------------- 查票價 */
@@ -1169,16 +1206,9 @@
   //
   // 用路徑式的結構化網址，把日期直接寫進 URL。之前用 Google Flights 的
   // 文字查詢（?q=Flights to Japan on ...）會被它自己重新解析，日期常常被忽略。
-  function iata(id, fallback) {
-    var v = "";
-    try { v = ($(id).value || "").trim().toUpperCase(); } catch (e) { /* 忽略 */ }
-    return /^[A-Z]{3}$/.test(v) ? v : fallback;
-  }
-
   function fareCodes() {
     if (!state.dest) return null;
-    var from = iata("origin", "TPE");
-    var to = iata("arrival", META[state.dest].gateway || "");
+    var from = $("origin").value, to = $("arrival").value;
     if (!from || !to || from === to) return null;
     return { from: from, to: to };
   }

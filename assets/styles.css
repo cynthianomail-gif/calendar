@@ -707,15 +707,27 @@ select#destination:focus { border-color: var(--accent); }
 
 /* ---------------------------------------------------------- 票價記錄 */
 .airports { align-items: flex-end; gap: 8px; margin-top: 12px; }
-.field-narrow { flex: 0 1 92px; }
+.field-narrow { flex: 1 1 130px; }
 .airports .arrow { padding-bottom: 12px; color: var(--muted); font-size: 14px; }
 .airports-note {
   flex: 1 1 100%; font-size: 11.5px; color: var(--muted); line-height: 1.5;
 }
-#origin, #arrival {
-  text-align: center; letter-spacing: .18em; text-transform: uppercase;
-  font-family: var(--font-num); font-weight: 500;
+#origin, #arrival { padding-right: 30px; }
+select#origin, select#arrival {
+  width: 100%; min-height: 46px; padding: 0 30px 0 12px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--text);
+  font: inherit; font-size: 15px;
+  -webkit-appearance: none; appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: right 16px center, right 11px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  transition: border-color .16s;
 }
+select#origin:focus, select#arrival:focus { border-color: var(--accent); }
 .farelinks { display: inline-flex; flex-wrap: wrap; gap: 12px; }
 
 .cand-extra {
