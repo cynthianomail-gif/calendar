@@ -129,10 +129,15 @@ scripts/build_site.py      打包腳本
 
 ## 部署
 
-在 repo 的 **Settings → Pages** 把 Source 選成 **GitHub Actions**，
-`.github/workflows/pages.yml` 就會自動把整個 repo 發布成靜態網站，
-網址是 `https://cynthianomail-gif.github.io/calendar/`。
+**第一次要手動開一次 Pages**（workflow 的 token 沒有建立 Pages 站台的權限）：
 
-workflow 會在推送到 `main` 或目前的預設分支時觸發，也可以到 Actions 分頁手動執行。
+1. 到 repo 的 **Settings → Pages**，把 Source 選成 **GitHub Actions**。
+2. 到 **Actions** 分頁，重跑一次 `Deploy to GitHub Pages`（或直接推一個 commit）。
+
+之後每次推送到預設分支都會自動重新產生資料並發布，網址是
+`https://cynthianomail-gif.github.io/calendar/`。
+
+如果第 1 步找不到 GitHub Actions 選項，通常是 **Settings → Actions → General →
+Workflow permissions** 被設成唯讀，改成 **Read and write permissions** 即可。
 
 也可以只把 `dist/index.html` 丟到任何地方（甚至存到手機裡離線開）。
