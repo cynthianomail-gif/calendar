@@ -123,7 +123,7 @@ h1, h2, h3 { line-height: 1.4; text-wrap: balance; }
 button { font: inherit; color: inherit; cursor: pointer; }
 
 /* 數字統一用軟襯線，字距收一點 */
-.num, .gauge span, .day b, .mday .n, .month-nav strong, .sugg .pill {
+.num, .gauge span, .day b, .mday .n, .month-nav strong, .pill {
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   font-weight: 500;
@@ -403,10 +403,11 @@ input:focus-visible, .tab:focus-visible, .chip:focus-visible, .linkish:focus-vis
 .sugg:last-child { margin-bottom: 0; }
 .sugg b { display: block; font-size: 14.5px; font-weight: 600; }
 .sugg small { color: var(--muted); font-size: 12px; }
-.sugg .pill {
-  flex: 0 0 auto; min-width: 50px; text-align: center;
+/* 分數藥丸：建議日期與候補清單共用 */
+.pill {
+  flex: 0 0 auto; min-width: 46px; text-align: center;
   padding: 6px 10px; border-radius: 11px;
-  color: #fff; font-size: 16px;
+  color: #fff; font-size: 16px; line-height: 1.2;
 }
 
 /* ---------------------------------------------------------------- 月曆 */
@@ -605,6 +606,64 @@ select#destination:focus { border-color: var(--accent); }
 .vtag.tpl { background: var(--surface-2); color: var(--muted); }
 .closure.tpl::before { background: var(--muted); }
 
+/* ---------------------------------------------------------- 候補日期 */
+.addbtn {
+  width: 100%; margin-top: 16px; min-height: 44px;
+  border: 1px dashed var(--line-strong); border-radius: var(--radius-sm);
+  background: transparent; color: var(--accent);
+  font-size: 14px; font-weight: 600; letter-spacing: .03em;
+  transition: all .16s;
+}
+.addbtn:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+.addbtn.is-on {
+  border-style: solid; border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.addbtn:disabled { opacity: .45; cursor: default; color: var(--muted); }
+
+.cand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 0; border-top: 1px solid var(--line);
+}
+.cand:first-child { border-top: 0; padding-top: 2px; }
+.cand.is-current .cand-main b { color: var(--accent); }
+.cand-main {
+  flex: 1; min-width: 0; text-align: left;
+  border: 0; background: none; padding: 0;
+}
+.cand-line { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.cand-main b { font-size: 14.5px; font-weight: 600; }
+.cand-main small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.cand-track {
+  margin-top: 7px; height: 5px; border-radius: 3px;
+  background: var(--surface-2); overflow: hidden;
+}
+.cand-fill { display: block; height: 100%; border-radius: 3px; }
+.tag.best { background: color-mix(in srgb, var(--lv0) 18%, transparent); color: var(--lv0); }
+.cand-del {
+  flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--line); background: transparent;
+  color: var(--muted); font-size: 12px; line-height: 1;
+  display: grid; place-content: center;
+  transition: all .16s;
+}
+.cand-del:hover { border-color: var(--lv4); color: var(--lv4); }
+
+/* 建議日期改成「套用」＋「加入候補」兩個動作 */
+.sugg-main {
+  flex: 1; min-width: 0; text-align: left;
+  border: 0; background: none; padding: 0;
+}
+.sugg-add {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%;
+  border: 1px dashed var(--line-strong); background: transparent;
+  color: var(--accent); font-size: 15px; line-height: 1;
+  display: grid; place-content: center;
+  transition: all .16s;
+}
+.sugg-add:hover { border-color: var(--accent); background: var(--accent-soft); }
+.sugg-add.is-on { border-style: solid; border-color: var(--accent); background: var(--accent-soft); }
+
 </style>
 </head>
 <body>
@@ -661,6 +720,13 @@ select#destination:focus { border-color: var(--accent); }
       </details>
     </div>
 
+    <div class="card" id="shortlist-card" hidden>
+      <h2>候補日期</h2>
+      <p class="hint" id="shortlist-hint"></p>
+      <div id="shortlist"></div>
+      <button class="linkish" id="shortlist-clear">清除全部候補</button>
+    </div>
+
     <div class="card score-card" id="score-card">
       <div class="score-main">
         <div class="gauge" id="gauge"><span id="score-value">–</span><small>擁擠指數</small></div>
@@ -670,6 +736,7 @@ select#destination:focus { border-color: var(--accent); }
         </div>
       </div>
       <div class="alert" id="dest-alert" hidden></div>
+      <button class="addbtn" id="add-shortlist"></button>
     </div>
 
     <div class="card dest-card" id="dest-card" hidden>
@@ -1045,6 +1112,118 @@ window.HOLIDAY_DATA={"generated":"2026-08-24","years":[2026,2027],"countries":[{
   }
   function filterKey() { return state.dest + "@" + activeCodes().join(","); }
 
+  /* -------------------------------------------------------- 候補清單 */
+  // 只存日期區間，不存當時的目的地與篩選。分數一律用「目前設定」重算，
+  // 這樣換一個目的地，整份候補清單會跟著重新排名——這正是比較的重點。
+  var shortlist = [];
+
+  function loadShortlist() {
+    try {
+      var raw = localStorage.getItem("hr.shortlist");
+      if (!raw) return [];
+      return JSON.parse(raw).filter(function (x) {
+        return x && typeof x.start === "string" && x.len > 0 && x.len <= 120;
+      }).slice(0, 12);
+    } catch (e) {
+      return [];
+    }
+  }
+  function persistShortlist() {
+    try {
+      localStorage.setItem("hr.shortlist", JSON.stringify(shortlist));
+    } catch (e) { /* 隱私模式，忽略 */ }
+  }
+  function shortlistIndex(startStr, len) {
+    for (var i = 0; i < shortlist.length; i++) {
+      if (shortlist[i].start === startStr && shortlist[i].len === len) return i;
+    }
+    return -1;
+  }
+  function currentTripLen() {
+    return diffDays(parse(state.start), parse(state.end)) + 1;
+  }
+  function toggleShortlist(startStr, len) {
+    var i = shortlistIndex(startStr, len);
+    if (i >= 0) shortlist.splice(i, 1);
+    else if (shortlist.length >= 12) return false;
+    else shortlist.push({ start: startStr, len: len });
+    persistShortlist();
+    renderShortlist();
+    renderAddButton();
+    return true;
+  }
+
+  function renderAddButton() {
+    var btn = $("add-shortlist");
+    if (!state.start) return;
+    var saved = shortlistIndex(state.start, currentTripLen()) >= 0;
+    btn.textContent = saved ? "✓ 已加入候補（點一下移除）" : "＋ 把這段日期加入候補";
+    btn.classList.toggle("is-on", saved);
+    btn.disabled = !saved && shortlist.length >= 12;
+    if (btn.disabled) btn.textContent = "候補清單已滿（最多 12 組）";
+  }
+
+  function renderShortlist() {
+    var card = $("shortlist-card"), box = $("shortlist");
+    clear(box);
+    if (!shortlist.length) { card.hidden = true; return; }
+    card.hidden = false;
+
+    var codes = activeCodes(), key = filterKey();
+    $("shortlist-hint").textContent = state.dest
+      ? "以目的地「" + META[state.dest].name + "」計算，由最順到最擠排列"
+      : "以全球人潮計算，由最順到最擠排列（選了目的地會重新排名）";
+
+    var rows = shortlist.map(function (item, idx) {
+      return {
+        idx: idx, start: item.start, len: item.len,
+        score: tripScore(item.start, item.len, codes, key)
+      };
+    }).sort(function (a, b) { return a.score - b.score || (a.start < b.start ? -1 : 1); });
+
+    var best = rows[0].score, worst = rows[rows.length - 1].score;
+    rows.forEach(function (r, rank) {
+      var endStr = ymd(addDays(parse(r.start), r.len - 1));
+      var isCurrent = r.start === state.start && r.len === currentTripLen();
+      var row = el("div", "cand" + (isCurrent ? " is-current" : ""));
+
+      var pick = el("button", "cand-main");
+      var line = el("div", "cand-line");
+      line.appendChild(el("b", null, fmtRange(r.start, endStr)));
+      if (rank === 0 && rows.length > 1 && worst > best) {
+        line.appendChild(el("span", "tag best", "最順"));
+      }
+      if (isCurrent) line.appendChild(el("span", "tag", "目前選擇"));
+      pick.appendChild(line);
+      pick.appendChild(el("small", null,
+        r.len + " 天・" + LEVELS[levelOf(r.score)].name));
+      var track = el("div", "cand-track");
+      var fill = el("span", "cand-fill lv" + levelOf(r.score));
+      fill.style.width = Math.max(4, r.score) + "%";
+      track.appendChild(fill);
+      pick.appendChild(track);
+      pick.addEventListener("click", function () {
+        $("start-date").value = r.start;
+        $("end-date").value = endStr;
+        readDates();
+        renderTrip();
+        markQuick();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+      row.appendChild(pick);
+
+      row.appendChild(el("span", "pill lv" + levelOf(r.score), String(r.score)));
+
+      var del = el("button", "cand-del", "✕");
+      del.setAttribute("aria-label", "從候補移除");
+      del.addEventListener("click", function () {
+        toggleShortlist(r.start, r.len);
+      });
+      row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+
   /* -------------------------------------------------------- DOM 工具 */
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
@@ -1268,6 +1447,8 @@ window.HOLIDAY_DATA={"generated":"2026-08-24","years":[2026,2027],"countries":[{
     }
 
     renderSuggestions(len, score, codes, key);
+    renderShortlist();
+    renderAddButton();
   }
 
   function noteLine(cls, text) {
@@ -1362,22 +1543,35 @@ window.HOLIDAY_DATA={"generated":"2026-08-24","years":[2026,2027],"countries":[{
 
     picked.forEach(function (p) {
       var endStr = ymd(addDays(parse(p.start), len - 1));
-      var b = el("button", "sugg");
-      var left = el("div");
-      left.appendChild(el("b", null, fmtRange(p.start, endStr)));
+      var row = el("div", "sugg");
+
+      var main = el("button", "sugg-main");
+      main.appendChild(el("b", null, fmtRange(p.start, endStr)));
       var delta = p.off > 0 ? "往後 " + p.off + " 天" : "提早 " + (-p.off) + " 天";
-      left.appendChild(el("small", null, delta + "・指數少 " + (currentScore - p.score) + " 分"));
-      b.appendChild(left);
-      var pill = el("span", "pill lv" + levelOf(p.score), String(p.score));
-      b.appendChild(pill);
-      b.addEventListener("click", function () {
+      main.appendChild(el("small", null, delta + "・指數少 " + (currentScore - p.score) + " 分"));
+      main.addEventListener("click", function () {
         $("start-date").value = p.start;
         $("end-date").value = endStr;
         readDates();
         renderTrip();
+        markQuick();
         window.scrollTo({ top: 0, behavior: "smooth" });
       });
-      box.appendChild(b);
+      row.appendChild(main);
+      row.appendChild(el("span", "pill lv" + levelOf(p.score), String(p.score)));
+
+      var add = el("button", "sugg-add");
+      var saved = shortlistIndex(p.start, len) >= 0;
+      add.textContent = saved ? "✓" : "＋";
+      add.title = saved ? "已在候補清單" : "加入候補";
+      add.setAttribute("aria-label", add.title);
+      add.classList.toggle("is-on", saved);
+      add.addEventListener("click", function () {
+        toggleShortlist(p.start, len);
+        renderTrip();
+      });
+      row.appendChild(add);
+      box.appendChild(row);
     });
   }
 
@@ -1677,6 +1871,19 @@ window.HOLIDAY_DATA={"generated":"2026-08-24","years":[2026,2027],"countries":[{
     });
   }
 
+  function initShortlist() {
+    shortlist = loadShortlist();
+    $("add-shortlist").addEventListener("click", function () {
+      toggleShortlist(state.start, currentTripLen());
+    });
+    $("shortlist-clear").addEventListener("click", function () {
+      shortlist = [];
+      persistShortlist();
+      renderShortlist();
+      renderAddButton();
+    });
+  }
+
   function initSheet() {
     $("sheet-close").addEventListener("click", closeSheet);
     $("sheet-backdrop").addEventListener("click", closeSheet);
@@ -1699,6 +1906,7 @@ window.HOLIDAY_DATA={"generated":"2026-08-24","years":[2026,2027],"countries":[{
   initTripControls();
   initCalendar();
   initCountries();
+  initShortlist();
   initSheet();
   initFooter();
   renderFilters();

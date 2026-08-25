@@ -271,6 +271,118 @@
   }
   function filterKey() { return state.dest + "@" + activeCodes().join(","); }
 
+  /* -------------------------------------------------------- 候補清單 */
+  // 只存日期區間，不存當時的目的地與篩選。分數一律用「目前設定」重算，
+  // 這樣換一個目的地，整份候補清單會跟著重新排名——這正是比較的重點。
+  var shortlist = [];
+
+  function loadShortlist() {
+    try {
+      var raw = localStorage.getItem("hr.shortlist");
+      if (!raw) return [];
+      return JSON.parse(raw).filter(function (x) {
+        return x && typeof x.start === "string" && x.len > 0 && x.len <= 120;
+      }).slice(0, 12);
+    } catch (e) {
+      return [];
+    }
+  }
+  function persistShortlist() {
+    try {
+      localStorage.setItem("hr.shortlist", JSON.stringify(shortlist));
+    } catch (e) { /* 隱私模式，忽略 */ }
+  }
+  function shortlistIndex(startStr, len) {
+    for (var i = 0; i < shortlist.length; i++) {
+      if (shortlist[i].start === startStr && shortlist[i].len === len) return i;
+    }
+    return -1;
+  }
+  function currentTripLen() {
+    return diffDays(parse(state.start), parse(state.end)) + 1;
+  }
+  function toggleShortlist(startStr, len) {
+    var i = shortlistIndex(startStr, len);
+    if (i >= 0) shortlist.splice(i, 1);
+    else if (shortlist.length >= 12) return false;
+    else shortlist.push({ start: startStr, len: len });
+    persistShortlist();
+    renderShortlist();
+    renderAddButton();
+    return true;
+  }
+
+  function renderAddButton() {
+    var btn = $("add-shortlist");
+    if (!state.start) return;
+    var saved = shortlistIndex(state.start, currentTripLen()) >= 0;
+    btn.textContent = saved ? "✓ 已加入候補（點一下移除）" : "＋ 把這段日期加入候補";
+    btn.classList.toggle("is-on", saved);
+    btn.disabled = !saved && shortlist.length >= 12;
+    if (btn.disabled) btn.textContent = "候補清單已滿（最多 12 組）";
+  }
+
+  function renderShortlist() {
+    var card = $("shortlist-card"), box = $("shortlist");
+    clear(box);
+    if (!shortlist.length) { card.hidden = true; return; }
+    card.hidden = false;
+
+    var codes = activeCodes(), key = filterKey();
+    $("shortlist-hint").textContent = state.dest
+      ? "以目的地「" + META[state.dest].name + "」計算，由最順到最擠排列"
+      : "以全球人潮計算，由最順到最擠排列（選了目的地會重新排名）";
+
+    var rows = shortlist.map(function (item, idx) {
+      return {
+        idx: idx, start: item.start, len: item.len,
+        score: tripScore(item.start, item.len, codes, key)
+      };
+    }).sort(function (a, b) { return a.score - b.score || (a.start < b.start ? -1 : 1); });
+
+    var best = rows[0].score, worst = rows[rows.length - 1].score;
+    rows.forEach(function (r, rank) {
+      var endStr = ymd(addDays(parse(r.start), r.len - 1));
+      var isCurrent = r.start === state.start && r.len === currentTripLen();
+      var row = el("div", "cand" + (isCurrent ? " is-current" : ""));
+
+      var pick = el("button", "cand-main");
+      var line = el("div", "cand-line");
+      line.appendChild(el("b", null, fmtRange(r.start, endStr)));
+      if (rank === 0 && rows.length > 1 && worst > best) {
+        line.appendChild(el("span", "tag best", "最順"));
+      }
+      if (isCurrent) line.appendChild(el("span", "tag", "目前選擇"));
+      pick.appendChild(line);
+      pick.appendChild(el("small", null,
+        r.len + " 天・" + LEVELS[levelOf(r.score)].name));
+      var track = el("div", "cand-track");
+      var fill = el("span", "cand-fill lv" + levelOf(r.score));
+      fill.style.width = Math.max(4, r.score) + "%";
+      track.appendChild(fill);
+      pick.appendChild(track);
+      pick.addEventListener("click", function () {
+        $("start-date").value = r.start;
+        $("end-date").value = endStr;
+        readDates();
+        renderTrip();
+        markQuick();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+      row.appendChild(pick);
+
+      row.appendChild(el("span", "pill lv" + levelOf(r.score), String(r.score)));
+
+      var del = el("button", "cand-del", "✕");
+      del.setAttribute("aria-label", "從候補移除");
+      del.addEventListener("click", function () {
+        toggleShortlist(r.start, r.len);
+      });
+      row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+
   /* -------------------------------------------------------- DOM 工具 */
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
@@ -494,6 +606,8 @@
     }
 
     renderSuggestions(len, score, codes, key);
+    renderShortlist();
+    renderAddButton();
   }
 
   function noteLine(cls, text) {
@@ -588,22 +702,35 @@
 
     picked.forEach(function (p) {
       var endStr = ymd(addDays(parse(p.start), len - 1));
-      var b = el("button", "sugg");
-      var left = el("div");
-      left.appendChild(el("b", null, fmtRange(p.start, endStr)));
+      var row = el("div", "sugg");
+
+      var main = el("button", "sugg-main");
+      main.appendChild(el("b", null, fmtRange(p.start, endStr)));
       var delta = p.off > 0 ? "往後 " + p.off + " 天" : "提早 " + (-p.off) + " 天";
-      left.appendChild(el("small", null, delta + "・指數少 " + (currentScore - p.score) + " 分"));
-      b.appendChild(left);
-      var pill = el("span", "pill lv" + levelOf(p.score), String(p.score));
-      b.appendChild(pill);
-      b.addEventListener("click", function () {
+      main.appendChild(el("small", null, delta + "・指數少 " + (currentScore - p.score) + " 分"));
+      main.addEventListener("click", function () {
         $("start-date").value = p.start;
         $("end-date").value = endStr;
         readDates();
         renderTrip();
+        markQuick();
         window.scrollTo({ top: 0, behavior: "smooth" });
       });
-      box.appendChild(b);
+      row.appendChild(main);
+      row.appendChild(el("span", "pill lv" + levelOf(p.score), String(p.score)));
+
+      var add = el("button", "sugg-add");
+      var saved = shortlistIndex(p.start, len) >= 0;
+      add.textContent = saved ? "✓" : "＋";
+      add.title = saved ? "已在候補清單" : "加入候補";
+      add.setAttribute("aria-label", add.title);
+      add.classList.toggle("is-on", saved);
+      add.addEventListener("click", function () {
+        toggleShortlist(p.start, len);
+        renderTrip();
+      });
+      row.appendChild(add);
+      box.appendChild(row);
     });
   }
 
@@ -903,6 +1030,19 @@
     });
   }
 
+  function initShortlist() {
+    shortlist = loadShortlist();
+    $("add-shortlist").addEventListener("click", function () {
+      toggleShortlist(state.start, currentTripLen());
+    });
+    $("shortlist-clear").addEventListener("click", function () {
+      shortlist = [];
+      persistShortlist();
+      renderShortlist();
+      renderAddButton();
+    });
+  }
+
   function initSheet() {
     $("sheet-close").addEventListener("click", closeSheet);
     $("sheet-backdrop").addEventListener("click", closeSheet);
@@ -925,6 +1065,7 @@
   initTripControls();
   initCalendar();
   initCountries();
+  initShortlist();
   initSheet();
   initFooter();
   renderFilters();
