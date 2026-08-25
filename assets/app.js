@@ -284,6 +284,8 @@
       if (!raw) return [];
       return JSON.parse(raw).filter(function (x) {
         return x && typeof x.start === "string" && x.len > 0 && x.len <= 120;
+      }).map(function (x) {
+        return { start: x.start, len: x.len, price: x.price > 0 ? x.price : undefined };
       }).slice(0, 12);
     } catch (e) {
       return [];
@@ -324,6 +326,39 @@
     if (btn.disabled) btn.textContent = "候補清單已滿（最多 12 組）";
   }
 
+  function priceChip(item) {
+    var wrap = el("span", "pricewrap");
+
+    function show() {
+      clear(wrap);
+      var b = el("button", "pricechip" + (item.price ? " has" : ""),
+        item.price ? "$ " + fmtPrice(item.price) : "＄ 記票價");
+      b.addEventListener("click", edit);
+      wrap.appendChild(b);
+    }
+
+    function edit() {
+      clear(wrap);
+      var inp = el("input", "priceinput");
+      inp.type = "number";
+      inp.inputMode = "numeric";
+      inp.placeholder = "票價";
+      inp.value = item.price || "";
+      inp.addEventListener("keydown", function (e) { if (e.key === "Enter") inp.blur(); });
+      inp.addEventListener("blur", function () {
+        var v = parseInt(String(inp.value).replace(/[^0-9]/g, ""), 10);
+        if (v > 0) item.price = v; else delete item.price;
+        persistShortlist();
+        renderShortlist();
+      });
+      wrap.appendChild(inp);
+      inp.focus();
+    }
+
+    show();
+    return wrap;
+  }
+
   function renderShortlist() {
     var card = $("shortlist-card"), box = $("shortlist");
     clear(box);
@@ -343,6 +378,10 @@
     }).sort(function (a, b) { return a.score - b.score || (a.start < b.start ? -1 : 1); });
 
     var best = rows[0].score, worst = rows[rows.length - 1].score;
+    var priced = shortlist.filter(function (x) { return x.price > 0; });
+    var cheapest = priced.length >= 2
+      ? priced.reduce(function (a, b) { return a.price < b.price ? a : b; }).price
+      : null;
     rows.forEach(function (r, rank) {
       var endStr = ymd(addDays(parse(r.start), r.len - 1));
       var isCurrent = r.start === state.start && r.len === currentTripLen();
@@ -371,16 +410,25 @@
         markQuick();
         window.scrollTo({ top: 0, behavior: "smooth" });
       });
-      row.appendChild(pick);
 
-      row.appendChild(el("span", "pill lv" + levelOf(r.score), String(r.score)));
-
+      var top = el("div", "cand-top");
+      top.appendChild(pick);
+      top.appendChild(el("span", "pill lv" + levelOf(r.score), String(r.score)));
       var del = el("button", "cand-del", "✕");
       del.setAttribute("aria-label", "從候補移除");
-      del.addEventListener("click", function () {
-        toggleShortlist(r.start, r.len);
-      });
-      row.appendChild(del);
+      del.addEventListener("click", function () { toggleShortlist(r.start, r.len); });
+      top.appendChild(del);
+      row.appendChild(top);
+
+      var extra = el("div", "cand-extra");
+      var link = flightLink(r.start, endStr);
+      if (link) extra.appendChild(link);
+      extra.appendChild(priceChip(shortlist[r.idx]));
+      if (cheapest !== null && shortlist[r.idx].price === cheapest) {
+        extra.appendChild(el("span", "tag best", "最便宜"));
+      }
+      row.appendChild(extra);
+
       box.appendChild(row);
     });
   }
@@ -903,6 +951,13 @@
     clr.addEventListener("click", clearPick);
     acts.appendChild(clr);
     bar.appendChild(acts);
+
+    var link = flightLink(pk.start, pk.end);
+    if (link) {
+      var fare = el("div", "pick-fare");
+      fare.appendChild(link);
+      bar.appendChild(fare);
+    }
   }
 
   /* -------------------------------------------------------- 日期詳情 */
@@ -1032,10 +1087,10 @@
     });
   }
 
-  function initDestination() {
-    var sel = $("destination");
-    sel.appendChild(el("option", null, "不指定（看全球人潮）"));
-    sel.firstChild.value = "";
+  function fillDestSelect(sel) {
+    var none = el("option", null, "不指定（看全球人潮）");
+    none.value = "";
+    sel.appendChild(none);
     REGIONS.forEach(function (region) {
       var g = document.createElement("optgroup");
       g.label = region;
@@ -1047,18 +1102,61 @@
         });
       sel.appendChild(g);
     });
+  }
+
+  function setDestination(code) {
+    state.dest = code;
+    try { localStorage.setItem("hr.dest", code); } catch (e) { /* 忽略 */ }
+    $("destination").value = code;
+    $("destination-cal").value = code;
+    scoreCache = {};
+    renderTrip();
+    renderCalendar();
+  }
+
+  function initDestination() {
+    var sels = [$("destination"), $("destination-cal")];
+    sels.forEach(fillDestSelect);
     try {
       var saved = localStorage.getItem("hr.dest");
       if (saved && META[saved]) state.dest = saved;
     } catch (e) { /* 忽略 */ }
-    sel.value = state.dest;
-    sel.addEventListener("change", function () {
-      state.dest = sel.value;
-      try { localStorage.setItem("hr.dest", state.dest); } catch (e) { /* 忽略 */ }
-      scoreCache = {};
-      renderTrip();
-      renderCalendar();
+    sels.forEach(function (sel) {
+      sel.value = state.dest;
+      sel.addEventListener("change", function () { setDestination(sel.value); });
     });
+
+    var origin = $("origin");
+    try { origin.value = localStorage.getItem("hr.origin") || ""; } catch (e) { /* 忽略 */ }
+    origin.addEventListener("change", function () {
+      try { localStorage.setItem("hr.origin", origin.value.trim()); } catch (e) { /* 忽略 */ }
+      renderShortlist();
+      renderPickBar();
+    });
+  }
+
+  /* -------------------------------------------------------- 查票價 */
+  // 沒有後端就拿不到即時票價（金鑰不能放在前端），所以做成一鍵帶著
+  // 日期與目的地跳到 Google Flights，查到的價格再手動記回候補清單。
+  function originName() {
+    var v = "";
+    try { v = ($("origin").value || "").trim(); } catch (e) { /* 忽略 */ }
+    return v || "Taipei";
+  }
+
+  function flightLink(startStr, endStr) {
+    if (!state.dest) return null;
+    var q = "Flights to " + META[state.dest].en + " from " + originName() +
+            " on " + startStr + " through " + endStr;
+    var a = el("a", "farelink", "查票價 ↗");
+    a.href = "https://www.google.com/travel/flights?hl=zh-TW&q=" + encodeURIComponent(q);
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    return a;
+  }
+
+  function fmtPrice(n) {
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
   function initTripControls() {

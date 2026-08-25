@@ -235,7 +235,7 @@ main { max-width: 880px; margin: 0 auto; padding: 6px 14px 0; }
   margin-bottom: 6px;
 }
 
-input[type="date"], input[type="search"] {
+input[type="date"], input[type="search"], input[type="text"] {
   width: 100%;
   min-height: 46px;
   padding: 0 14px;
@@ -621,11 +621,9 @@ select#destination:focus { border-color: var(--accent); }
 }
 .addbtn:disabled { opacity: .45; cursor: default; color: var(--muted); }
 
-.cand {
-  display: flex; align-items: center; gap: 10px;
-  padding: 11px 0; border-top: 1px solid var(--line);
-}
+.cand { padding: 12px 0; border-top: 1px solid var(--line); }
 .cand:first-child { border-top: 0; padding-top: 2px; }
+.cand-top { display: flex; align-items: center; gap: 10px; }
 .cand.is-current .cand-main b { color: var(--accent); }
 .cand-main {
   flex: 1; min-width: 0; text-align: left;
@@ -723,6 +721,47 @@ select#destination:focus { border-color: var(--accent); }
 }
 .pick-clear:hover { border-color: var(--lv4); color: var(--lv4); }
 
+/* ---------------------------------------------------------- 票價記錄 */
+.dest-row { align-items: flex-end; }
+.field-narrow { flex: 0 1 130px; }
+
+.cand-extra {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  margin-top: 9px; padding-left: 1px;
+}
+.farelink {
+  font-size: 12.5px; font-weight: 600; color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.farelink:hover { border-bottom-color: var(--accent); }
+.pricewrap { display: inline-flex; }
+.pricechip {
+  min-height: 30px; padding: 0 11px;
+  border: 1px dashed var(--line-strong); border-radius: 999px;
+  background: transparent; color: var(--muted);
+  font-size: 12.5px;
+  font-family: var(--font-num); font-variant-numeric: tabular-nums;
+  transition: all .16s;
+}
+.pricechip:hover { border-color: var(--accent); color: var(--accent); }
+.pricechip.has {
+  border-style: solid; border-color: var(--accent);
+  background: var(--accent-soft); color: var(--accent); font-weight: 500;
+}
+.priceinput {
+  width: 110px; min-height: 30px; padding: 0 10px;
+  border: 1px solid var(--accent); border-radius: 999px;
+  background: var(--surface); color: var(--text);
+  font: inherit; font-size: 16px;   /* 低於 16px 會讓 iOS 自動放大 */
+  font-variant-numeric: tabular-nums;
+  -webkit-appearance: none; appearance: none;
+}
+.priceinput::-webkit-outer-spin-button,
+.priceinput::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.pick-fare { width: 100%; padding-top: 2px; }
+
 </style>
 </head>
 <body>
@@ -757,10 +796,16 @@ select#destination:focus { border-color: var(--accent); }
           <input type="date" id="end-date">
         </label>
       </div>
-      <label class="field dest-field">
-        <span class="field-label">目的地（選了會多算「當地也在放假」）</span>
-        <select id="destination"></select>
-      </label>
+      <div class="field-row dest-row">
+        <label class="field">
+          <span class="field-label">目的地</span>
+          <select id="destination"></select>
+        </label>
+        <label class="field field-narrow">
+          <span class="field-label">出發地</span>
+          <input type="text" id="origin" placeholder="Taipei" autocomplete="off" aria-label="出發地，用於查機票">
+        </label>
+      </div>
       <div class="chips" id="quick-ranges">
         <button class="chip" data-len="3">3 天</button>
         <button class="chip" data-len="5">5 天</button>
@@ -835,6 +880,10 @@ select#destination:focus { border-color: var(--accent); }
   <!-- ============================================ 月曆 -->
   <section class="panel" id="panel-calendar" hidden>
     <div class="card">
+      <label class="field dest-field">
+        <span class="field-label">目的地</span>
+        <select id="destination-cal"></select>
+      </label>
       <div class="month-nav">
         <button class="iconbtn" id="prev-month" aria-label="上個月">‹</button>
         <strong id="month-title"></strong>
@@ -1190,6 +1239,8 @@ window.HOLIDAY_DATA={"generated":"2026-08-24","years":[2026,2027],"countries":[{
       if (!raw) return [];
       return JSON.parse(raw).filter(function (x) {
         return x && typeof x.start === "string" && x.len > 0 && x.len <= 120;
+      }).map(function (x) {
+        return { start: x.start, len: x.len, price: x.price > 0 ? x.price : undefined };
       }).slice(0, 12);
     } catch (e) {
       return [];
@@ -1230,6 +1281,39 @@ window.HOLIDAY_DATA={"generated":"2026-08-24","years":[2026,2027],"countries":[{
     if (btn.disabled) btn.textContent = "候補清單已滿（最多 12 組）";
   }
 
+  function priceChip(item) {
+    var wrap = el("span", "pricewrap");
+
+    function show() {
+      clear(wrap);
+      var b = el("button", "pricechip" + (item.price ? " has" : ""),
+        item.price ? "$ " + fmtPrice(item.price) : "＄ 記票價");
+      b.addEventListener("click", edit);
+      wrap.appendChild(b);
+    }
+
+    function edit() {
+      clear(wrap);
+      var inp = el("input", "priceinput");
+      inp.type = "number";
+      inp.inputMode = "numeric";
+      inp.placeholder = "票價";
+      inp.value = item.price || "";
+      inp.addEventListener("keydown", function (e) { if (e.key === "Enter") inp.blur(); });
+      inp.addEventListener("blur", function () {
+        var v = parseInt(String(inp.value).replace(/[^0-9]/g, ""), 10);
+        if (v > 0) item.price = v; else delete item.price;
+        persistShortlist();
+        renderShortlist();
+      });
+      wrap.appendChild(inp);
+      inp.focus();
+    }
+
+    show();
+    return wrap;
+  }
+
   function renderShortlist() {
     var card = $("shortlist-card"), box = $("shortlist");
     clear(box);
@@ -1249,6 +1333,10 @@ window.HOLIDAY_DATA={"generated":"2026-08-24","years":[2026,2027],"countries":[{
     }).sort(function (a, b) { return a.score - b.score || (a.start < b.start ? -1 : 1); });
 
     var best = rows[0].score, worst = rows[rows.length - 1].score;
+    var priced = shortlist.filter(function (x) { return x.price > 0; });
+    var cheapest = priced.length >= 2
+      ? priced.reduce(function (a, b) { return a.price < b.price ? a : b; }).price
+      : null;
     rows.forEach(function (r, rank) {
       var endStr = ymd(addDays(parse(r.start), r.len - 1));
       var isCurrent = r.start === state.start && r.len === currentTripLen();
@@ -1277,16 +1365,25 @@ window.HOLIDAY_DATA={"generated":"2026-08-24","years":[2026,2027],"countries":[{
         markQuick();
         window.scrollTo({ top: 0, behavior: "smooth" });
       });
-      row.appendChild(pick);
 
-      row.appendChild(el("span", "pill lv" + levelOf(r.score), String(r.score)));
-
+      var top = el("div", "cand-top");
+      top.appendChild(pick);
+      top.appendChild(el("span", "pill lv" + levelOf(r.score), String(r.score)));
       var del = el("button", "cand-del", "✕");
       del.setAttribute("aria-label", "從候補移除");
-      del.addEventListener("click", function () {
-        toggleShortlist(r.start, r.len);
-      });
-      row.appendChild(del);
+      del.addEventListener("click", function () { toggleShortlist(r.start, r.len); });
+      top.appendChild(del);
+      row.appendChild(top);
+
+      var extra = el("div", "cand-extra");
+      var link = flightLink(r.start, endStr);
+      if (link) extra.appendChild(link);
+      extra.appendChild(priceChip(shortlist[r.idx]));
+      if (cheapest !== null && shortlist[r.idx].price === cheapest) {
+        extra.appendChild(el("span", "tag best", "最便宜"));
+      }
+      row.appendChild(extra);
+
       box.appendChild(row);
     });
   }
@@ -1809,6 +1906,13 @@ window.HOLIDAY_DATA={"generated":"2026-08-24","years":[2026,2027],"countries":[{
     clr.addEventListener("click", clearPick);
     acts.appendChild(clr);
     bar.appendChild(acts);
+
+    var link = flightLink(pk.start, pk.end);
+    if (link) {
+      var fare = el("div", "pick-fare");
+      fare.appendChild(link);
+      bar.appendChild(fare);
+    }
   }
 
   /* -------------------------------------------------------- 日期詳情 */
@@ -1938,10 +2042,10 @@ window.HOLIDAY_DATA={"generated":"2026-08-24","years":[2026,2027],"countries":[{
     });
   }
 
-  function initDestination() {
-    var sel = $("destination");
-    sel.appendChild(el("option", null, "不指定（看全球人潮）"));
-    sel.firstChild.value = "";
+  function fillDestSelect(sel) {
+    var none = el("option", null, "不指定（看全球人潮）");
+    none.value = "";
+    sel.appendChild(none);
     REGIONS.forEach(function (region) {
       var g = document.createElement("optgroup");
       g.label = region;
@@ -1953,18 +2057,61 @@ window.HOLIDAY_DATA={"generated":"2026-08-24","years":[2026,2027],"countries":[{
         });
       sel.appendChild(g);
     });
+  }
+
+  function setDestination(code) {
+    state.dest = code;
+    try { localStorage.setItem("hr.dest", code); } catch (e) { /* 忽略 */ }
+    $("destination").value = code;
+    $("destination-cal").value = code;
+    scoreCache = {};
+    renderTrip();
+    renderCalendar();
+  }
+
+  function initDestination() {
+    var sels = [$("destination"), $("destination-cal")];
+    sels.forEach(fillDestSelect);
     try {
       var saved = localStorage.getItem("hr.dest");
       if (saved && META[saved]) state.dest = saved;
     } catch (e) { /* 忽略 */ }
-    sel.value = state.dest;
-    sel.addEventListener("change", function () {
-      state.dest = sel.value;
-      try { localStorage.setItem("hr.dest", state.dest); } catch (e) { /* 忽略 */ }
-      scoreCache = {};
-      renderTrip();
-      renderCalendar();
+    sels.forEach(function (sel) {
+      sel.value = state.dest;
+      sel.addEventListener("change", function () { setDestination(sel.value); });
     });
+
+    var origin = $("origin");
+    try { origin.value = localStorage.getItem("hr.origin") || ""; } catch (e) { /* 忽略 */ }
+    origin.addEventListener("change", function () {
+      try { localStorage.setItem("hr.origin", origin.value.trim()); } catch (e) { /* 忽略 */ }
+      renderShortlist();
+      renderPickBar();
+    });
+  }
+
+  /* -------------------------------------------------------- 查票價 */
+  // 沒有後端就拿不到即時票價（金鑰不能放在前端），所以做成一鍵帶著
+  // 日期與目的地跳到 Google Flights，查到的價格再手動記回候補清單。
+  function originName() {
+    var v = "";
+    try { v = ($("origin").value || "").trim(); } catch (e) { /* 忽略 */ }
+    return v || "Taipei";
+  }
+
+  function flightLink(startStr, endStr) {
+    if (!state.dest) return null;
+    var q = "Flights to " + META[state.dest].en + " from " + originName() +
+            " on " + startStr + " through " + endStr;
+    var a = el("a", "farelink", "查票價 ↗");
+    a.href = "https://www.google.com/travel/flights?hl=zh-TW&q=" + encodeURIComponent(q);
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    return a;
+  }
+
+  function fmtPrice(n) {
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
   function initTripControls() {

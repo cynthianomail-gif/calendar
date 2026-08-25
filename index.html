@@ -47,10 +47,16 @@
           <input type="date" id="end-date">
         </label>
       </div>
-      <label class="field dest-field">
-        <span class="field-label">目的地（選了會多算「當地也在放假」）</span>
-        <select id="destination"></select>
-      </label>
+      <div class="field-row dest-row">
+        <label class="field">
+          <span class="field-label">目的地</span>
+          <select id="destination"></select>
+        </label>
+        <label class="field field-narrow">
+          <span class="field-label">出發地</span>
+          <input type="text" id="origin" placeholder="Taipei" autocomplete="off" aria-label="出發地，用於查機票">
+        </label>
+      </div>
       <div class="chips" id="quick-ranges">
         <button class="chip" data-len="3">3 天</button>
         <button class="chip" data-len="5">5 天</button>
@@ -125,6 +131,10 @@
   <!-- ============================================ 月曆 -->
   <section class="panel" id="panel-calendar" hidden>
     <div class="card">
+      <label class="field dest-field">
+        <span class="field-label">目的地</span>
+        <select id="destination-cal"></select>
+      </label>
       <div class="month-nav">
         <button class="iconbtn" id="prev-month" aria-label="上個月">‹</button>
         <strong id="month-title"></strong>
