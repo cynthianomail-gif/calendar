@@ -424,6 +424,11 @@
       var links = fareLinks(r.start, endStr);
       if (links) extra.appendChild(links);
       extra.appendChild(priceChip(shortlist[r.idx]));
+      // 自己記過票價就不再顯示參考價，免得兩個數字互相打架
+      if (!shortlist[r.idx].price) {
+        var reftag = refFareTag(r.start);
+        if (reftag) extra.appendChild(reftag);
+      }
       if (cheapest !== null && shortlist[r.idx].price === cheapest) {
         extra.appendChild(el("span", "tag best", "最便宜"));
       }
@@ -1119,6 +1124,7 @@
     $("destination").value = code;
     $("destination-cal").value = code;
     markDestSelects();
+    loadFaresFor(code);
     syncAirports();
     scoreCache = {};
     renderTrip();
@@ -1245,6 +1251,66 @@
       a.rel = "noopener noreferrer";
     });
     return box;
+  }
+
+  /* ---------------------------------------------------- 參考票價（自動抓） */
+  // data/fares/<國碼>.json 由 GitHub Actions 每天抓一次。兩件事要一直記得：
+  // 來源是 Travelpayouts 的**快取價**（別人先前搜到的最低價）而不是即時報價，
+  // 而且是**單程**價。所以顯示時一定要標上「單程」與抓取日期，
+  // 不要讓它看起來像現在買得到的來回票。
+  //
+  // 它也永遠不覆蓋使用者自己記的票價——手動記的是真的去查到的，比這個可信；
+  // 「最便宜」那個標籤也只比手動價，混進參考價會讓它失去意義。
+  //
+  // 用 fetch 讀外部 JSON，所以只有從網站（http）開啟時才有。
+  // dist/ 那份單檔版用 file:// 打開時會失敗，靜靜降級成沒有參考價。
+  var fareIndex = null;
+  var fareDocs = {};
+
+  function initFares() {
+    fetch("data/fares/index.json")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        fareIndex = j;
+        loadFaresFor(state.dest);
+      })
+      .catch(function () { /* 沒有這份資料就當作沒有 */ });
+  }
+
+  function loadFaresFor(code) {
+    if (!code || !fareIndex || !fareIndex.countries) return;
+    if (fareIndex.countries.indexOf(code) < 0) return;
+    if (Object.prototype.hasOwnProperty.call(fareDocs, code)) return;
+    fareDocs[code] = null;              // 先佔位，避免同一國重複請求
+    fetch("data/fares/" + code + ".json")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        fareDocs[code] = j;
+        if (j) renderShortlist();
+      })
+      .catch(function () { /* 忽略 */ });
+  }
+
+  // 出發機場對不上就不給參考價：這份資料只從一個機場出發抓，
+  // 使用者改成從高雄飛的話這個價格並不適用，寧可不顯示。
+  function refFare(startStr) {
+    var doc = state.dest ? fareDocs[state.dest] : null;
+    if (!doc || !doc.days) return null;
+    if ($("origin").value !== doc.origin) return null;
+    return doc.days[startStr] || null;
+  }
+
+  function refFareTag(startStr) {
+    var f = refFare(startStr);
+    if (!f) return null;
+    var doc = fareDocs[state.dest];
+    var tag = el("span", "reffare", "單程約 $" + fmtPrice(f.p));
+    tag.title = doc.origin + " → " + doc.destination + "，" +
+                (f.c ? f.c + " 次轉機" : "直飛") + "。" +
+                "這是別人先前搜到的最低單程價（" +
+                (f.f || String(doc.fetched_at).slice(0, 10)) + " 的資料），" +
+                "不是即時報價，也不是來回票價。實際請點左邊的訂票連結確認。";
+    return tag;
   }
 
   function fmtPrice(n) {
@@ -1378,6 +1444,7 @@
   initShortlist();
   initSheet();
   initFooter();
+  initFares();
   renderFilters();
   renderTrip();
   markQuick();

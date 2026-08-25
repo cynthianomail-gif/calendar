@@ -72,8 +72,52 @@ https://www.google.com/travel/flights#flt=TPE.TYO.2026-05-16*TYO.TPE.2026-05-22;
 
 抵達機場的選擇**依國家分別記住**，在幾個目的地之間來回切換不會被覆蓋。
 
-如果之後真的要接即時票價，需要多一個 serverless function（Cloudflare Workers、
-Vercel 之類）來保管金鑰並代打 API。
+如果之後真的要接**即時**票價，需要多一個 serverless function（Cloudflare Workers、
+Vercel 之類）來保管金鑰並代打 API。目前沒走這條，改用下面的「參考價」補上一半。
+
+## 參考價：每天抓一次的趨勢，不是即時報價
+
+`.github/workflows/fares.yml` 每天台灣時間清晨四點跑一次
+`scripts/fetch_fares.py`，把「TPE 出發到各國主要門戶」未來六個月的
+**每日最低單程價**抓下來，存成 `data/fares/<國碼>.json`，再 commit 回 repo
+（資料不在 repo 裡的話，下一次任何人 push 都會把它弄丟）。
+
+前端選了目的地才去載那一國的檔案，首頁載入不受影響。候補清單上
+**沒有手動記價的那幾列**會顯示一個灰色的「單程約 $X」，滑上去有完整說明。
+
+三個必須一直記得的限制，前端的文案都照這個寫：
+
+* **是快取價，不是即時報價。** 來源 Travelpayouts 的官方文件自己說資料
+  來自快取、建議拿來產生靜態頁面。每筆都帶 `found_at`，顯示時要標出來。
+* **是單程價。** 回應裡的 `return_date` 是空字串。不要拿去當來回票價。
+* **只從 TPE 出發。** 使用者把出發機場改成別的（例如 KHH），參考價就不顯示——
+  換個機場價格根本不一樣，寧可不給。
+
+它也**永遠不覆蓋手動記的票價**：手動記的是真的去查到的，比快取價可信。
+「最便宜」那個標籤也只比手動價，混進參考價會讓它失去意義。
+
+### 設定（只需做一次）
+
+1. 到 <https://www.travelpayouts.com/> 註冊聯盟帳號（免費），在
+   Tools → API 取得 API token。
+2. GitHub repo → Settings → Secrets and variables → Actions → New repository secret，
+   名稱 `TRAVELPAYOUTS_TOKEN`，值貼上 token。
+3. Actions 分頁 → 「抓機票參考價」→ Run workflow 手動跑一次確認。
+
+沒設定 secret 時 workflow 會直接跳過並留一則 notice，不會失敗、不會每天寄信。
+
+本機測試：
+
+```bash
+TRAVELPAYOUTS_TOKEN=xxx python3 scripts/fetch_fares.py --only JP,KR --months 2
+```
+
+**幣別還沒實際驗證過**：腳本送的是 `currency=twd`，但沒有 token 就沒辦法確認
+API 真的支援台幣。第一次跑完請看一眼數字量級對不對（台北→東京單程幾千到一萬多
+才合理），不對的話改用 `--currency usd`，前端顯示的幣別會跟著 JSON 裡的 `currency` 走。
+
+GitHub 對超過 60 天沒有 push 的 repo 會自動停用排程 workflow，
+真的長期沒動的話要去 Actions 頁面手動啟用。
 
 ## 「擠」跟「有沒有開」是兩件事
 
@@ -139,11 +183,17 @@ assets/styles.css          樣式（手機優先、支援深色模式）
 assets/app.js              全部邏輯：連假偵測、擁擠指數、三個檢視
 data/holidays.json         假期資料（正本）
 data/holidays.js           同上，包成 window.HOLIDAY_DATA 供頁面載入
+data/fares/<國碼>.json     每日最低單程參考價，由排程抓取（首次跑過才會出現）
+data/fares/index.json      哪幾國有票價資料，前端據此決定要不要去載
 dist/index.html            全部內嵌的單檔版，可直接傳給別人或離線使用
 dist/artifact.html         同上但不含 html/head/body 外殼，給自帶外層的環境用
 scripts/build_holidays.py  假期資料產生器
 scripts/build_site.py      打包腳本
+scripts/fetch_fares.py     票價抓取（需要 TRAVELPAYOUTS_TOKEN）
 ```
+
+`dist/` 那兩個單檔版**沒有**參考價：它們用 `file://` 打開，`fetch` 讀不到
+外部 JSON，程式會靜靜降級成只有手動記價。
 
 ### 加國家
 
