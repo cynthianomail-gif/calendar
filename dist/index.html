@@ -47,6 +47,15 @@
   --radius: 20px;
   --radius-sm: 14px;
 
+  /* 讓瀏覽器自己畫的東西（select 展開的原生清單、捲軸、日期選擇器）
+     跟著配色走，否則深色底下會冒出一塊白 */
+  color-scheme: light;
+
+  /* 下拉選單的收合箭號：線描 chevron，配合全站的髮絲線調性。
+     顏色烤在 SVG 裡，所以每套配色各留一份。 */
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%239d8894' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.4 5.6 7 9.2l3.6-3.6'/%3E%3C/svg%3E");
+  --chevron-on: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%23c76a9b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.4 5.6 7 9.2l3.6-3.6'/%3E%3C/svg%3E");
+
   --font-text: "PingFang TC", -apple-system, BlinkMacSystemFont, "Noto Sans TC",
                "Microsoft JhengHei", "Segoe UI", Roboto, sans-serif;
   --font-num: "Fraunces", Georgia, "Times New Roman", serif;
@@ -68,6 +77,10 @@
     --shadow: 0 1px 2px rgba(0, 0, 0, .3);
     --shadow-lift: 0 2px 6px rgba(0, 0, 0, .32), 0 14px 30px rgba(0, 0, 0, .3);
 
+    color-scheme: dark;
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%23b39dab' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.4 5.6 7 9.2l3.6-3.6'/%3E%3C/svg%3E");
+    --chevron-on: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%23eb96be' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.4 5.6 7 9.2l3.6-3.6'/%3E%3C/svg%3E");
+
     --lv0: #7fcfae;
     --lv1: #d3db8e;
     --lv2: #f0c47e;
@@ -88,6 +101,10 @@
   --accent-soft: #3a2334;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3);
   --shadow-lift: 0 2px 6px rgba(0, 0, 0, .32), 0 14px 30px rgba(0, 0, 0, .3);
+
+  color-scheme: dark;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%23b39dab' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.4 5.6 7 9.2l3.6-3.6'/%3E%3C/svg%3E");
+  --chevron-on: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%23eb96be' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.4 5.6 7 9.2l3.6-3.6'/%3E%3C/svg%3E");
 
   --lv0: #7fcfae;
   --lv1: #d3db8e;
@@ -251,7 +268,8 @@ input[type="date"], input[type="search"], input[type="text"] {
   transition: border-color .16s, background-color .16s;
 }
 input:focus { border-color: var(--accent); background: var(--surface); }
-input:focus-visible, .tab:focus-visible, .chip:focus-visible, .linkish:focus-visible,
+input:focus-visible, select:focus-visible,
+.tab:focus-visible, .chip:focus-visible, .linkish:focus-visible,
 .day:focus-visible, .mday:focus-visible, .iconbtn:focus-visible,
 .sugg:focus-visible, summary:focus-visible {
   outline: 2px solid var(--accent);
@@ -534,27 +552,58 @@ footer li::marker { color: var(--accent); }
 
 /* ------------------------------------------------------- 目的地與營業狀況 */
 .dest-field { margin-top: 14px; }
-select#destination {
+
+/* 四個下拉選單（目的地 ×2、出發／抵達機場）共用同一個外殼。
+   原生 <select> 保留、不換成自製選單：目的地有一百多個選項，
+   原生清單的鍵盤首字搜尋、長清單捲動與行動裝置的滾輪都比自製的好用；
+   醜的只是外殼，換掉外殼就好。外觀跟 input 走同一組髮絲線＋粉調底，
+   讓「日期」和「目的地」在同一張卡片裡看起來是同一家人。 */
+select#destination, select#destination-cal,
+select#origin, select#arrival {
   width: 100%;
   min-height: 46px;
-  padding: 0 12px;
+  padding: 0 40px 0 14px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  background-color: var(--surface-2);
   color: var(--text);
   font: inherit;
-  font-size: 16px;
+  font-size: 16px;          /* 低於 16px 會讓 iOS 聚焦時自動放大 */
+  text-overflow: ellipsis;  /* 國名長的時候截尾，不要把版面撐開 */
+  cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position: right 18px center, right 13px center;
-  background-size: 5px 5px, 5px 5px;
+  background-image: var(--chevron);
+  background-position: right 15px center;
+  background-size: 14px 14px;
   background-repeat: no-repeat;
-  transition: border-color .16s;
+  transition: border-color .16s, background-color .16s, box-shadow .16s;
 }
-select#destination:focus { border-color: var(--accent); }
+
+select#destination:hover, select#destination-cal:hover,
+select#origin:hover, select#arrival:hover {
+  border-color: var(--line-strong);
+  background-color: var(--surface);
+  background-image: var(--chevron-on);
+}
+
+/* 聚焦時的光暈用 accent-soft，比投影更貼近「幾乎不用陰影」的調性 */
+select#destination:focus, select#destination-cal:focus,
+select#origin:focus, select#arrival:focus {
+  border-color: var(--accent);
+  background-color: var(--surface);
+  background-image: var(--chevron-on);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* 已經選了國家（不是「不指定」）就把外框轉成玫瑰色，
+   整頁的數字都是照這個國家算的，值得標示出來。
+   is-set 由 app.js 的 markDestSelects() 掛上。 */
+select#destination.is-set, select#destination-cal.is-set {
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
+  background-image: var(--chevron-on);
+}
 
 .dest-card { border-color: var(--line-strong); }
 .dest-card h2::before { background: var(--lv3); }
@@ -728,22 +777,14 @@ select#destination:focus { border-color: var(--accent); }
 .airports-note {
   flex: 1 1 100%; font-size: 11.5px; color: var(--muted); line-height: 1.5;
 }
-#origin, #arrival { padding-right: 30px; }
+/* 機場那一列是兩欄並排，格子窄，箭號往內收一點、字級小半號。
+   其餘外觀沿用上面的共用 select 樣式。 */
 select#origin, select#arrival {
-  width: 100%; min-height: 46px; padding: 0 30px 0 12px;
-  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
-  background: var(--surface-2); color: var(--text);
-  font: inherit; font-size: 15px;
-  -webkit-appearance: none; appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position: right 16px center, right 11px center;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
-  transition: border-color .16s;
+  padding: 0 32px 0 12px;
+  font-size: 15px;
+  background-position: right 12px center;
+  background-size: 12px 12px;
 }
-select#origin:focus, select#arrival:focus { border-color: var(--accent); }
 .farelinks { display: inline-flex; flex-wrap: wrap; gap: 12px; }
 
 .cand-extra {
@@ -2086,11 +2127,21 @@ window.HOLIDAY_DATA={"generated":"2026-08-25","years":[2026,2027],"countries":[{
     });
   }
 
+  // 選了國家的下拉選單要換成玫瑰色外框（樣式在 .dest-select.is-set）。
+  // 不用 CSS 的 :has(option:checked) 判斷：實測 Chrome 在 select 內部
+  // 選取狀態改變時不會重算外層樣式，換國家後外框不會跟著亮。
+  function markDestSelects() {
+    ["destination", "destination-cal"].forEach(function (id) {
+      $(id).classList.toggle("is-set", !!state.dest);
+    });
+  }
+
   function setDestination(code) {
     state.dest = code;
     try { localStorage.setItem("hr.dest", code); } catch (e) { /* 忽略 */ }
     $("destination").value = code;
     $("destination-cal").value = code;
+    markDestSelects();
     syncAirports();
     scoreCache = {};
     renderTrip();
@@ -2108,6 +2159,7 @@ window.HOLIDAY_DATA={"generated":"2026-08-25","years":[2026,2027],"countries":[{
       sel.value = state.dest;
       sel.addEventListener("change", function () { setDestination(sel.value); });
     });
+    markDestSelects();
 
     var origin = $("origin"), arrival = $("arrival");
     fillOriginSelect(origin);

@@ -1104,11 +1104,21 @@
     });
   }
 
+  // 選了國家的下拉選單要換成玫瑰色外框（樣式在 .dest-select.is-set）。
+  // 不用 CSS 的 :has(option:checked) 判斷：實測 Chrome 在 select 內部
+  // 選取狀態改變時不會重算外層樣式，換國家後外框不會跟著亮。
+  function markDestSelects() {
+    ["destination", "destination-cal"].forEach(function (id) {
+      $(id).classList.toggle("is-set", !!state.dest);
+    });
+  }
+
   function setDestination(code) {
     state.dest = code;
     try { localStorage.setItem("hr.dest", code); } catch (e) { /* 忽略 */ }
     $("destination").value = code;
     $("destination-cal").value = code;
+    markDestSelects();
     syncAirports();
     scoreCache = {};
     renderTrip();
@@ -1126,6 +1136,7 @@
       sel.value = state.dest;
       sel.addEventListener("change", function () { setDestination(sel.value); });
     });
+    markDestSelects();
 
     var origin = $("origin"), arrival = $("arrival");
     fillOriginSelect(origin);
