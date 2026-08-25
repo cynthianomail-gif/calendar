@@ -405,6 +405,38 @@ VERIFIED = {
     "EG", "ZA", "KE",
 }
 
+# 各國主要國際門戶的 IATA 代碼（優先用城市代碼），供查機票的連結使用。
+# 使用者可以在介面上改成自己要飛的機場。
+GATEWAY = {
+    "CN": "PEK", "JP": "TYO", "KR": "SEL", "TW": "TPE", "HK": "HKG",
+    "MO": "MFM", "MN": "ULN",
+    "SG": "SIN", "MY": "KUL", "TH": "BKK", "VN": "SGN", "ID": "CGK",
+    "PH": "MNL", "KH": "PNH", "LA": "VTE", "MM": "RGN", "BN": "BWN",
+    "IN": "DEL", "NP": "KTM", "LK": "CMB", "MV": "MLE", "BD": "DAC", "PK": "ISB",
+    "KZ": "ALA", "UZ": "TAS", "GE": "TBS", "AM": "EVN", "AZ": "GYD",
+    "TR": "IST", "IL": "TLV", "AE": "DXB", "SA": "RUH", "QA": "DOH",
+    "KW": "KWI", "BH": "BAH", "OM": "MCT", "JO": "AMM", "LB": "BEY",
+    "IR": "IKA", "IQ": "BGW",
+    "GB": "LON", "IE": "DUB", "FR": "PAR", "DE": "FRA", "NL": "AMS",
+    "BE": "BRU", "LU": "LUX", "CH": "ZRH", "AT": "VIE", "IT": "ROM",
+    "ES": "MAD", "PT": "LIS", "GR": "ATH", "MT": "MLA", "CY": "LCA",
+    "DK": "CPH", "SE": "STO", "NO": "OSL", "FI": "HEL", "IS": "KEF",
+    "EE": "TLL", "LV": "RIX", "LT": "VNO", "PL": "WAW", "CZ": "PRG",
+    "SK": "BTS", "HU": "BUD", "SI": "LJU", "HR": "ZAG", "BA": "SJJ",
+    "RS": "BEG", "ME": "TGD", "MK": "SKP", "AL": "TIA", "RO": "OTP",
+    "BG": "SOF", "UA": "KBP", "RU": "MOW", "BY": "MSQ", "MD": "KIV",
+    "US": "NYC", "CA": "YTO", "MX": "MEX",
+    "GT": "GUA", "CR": "SJO", "PA": "PTY", "CU": "HAV", "DO": "SDQ",
+    "JM": "KIN", "CO": "BOG", "VE": "CCS", "EC": "UIO", "PE": "LIM",
+    "BO": "LPB", "CL": "SCL", "AR": "BUE", "UY": "MVD", "PY": "ASU",
+    "BR": "SAO",
+    "EG": "CAI", "MA": "CMN", "TN": "TUN", "DZ": "ALG", "ZA": "JNB",
+    "KE": "NBO", "TZ": "DAR", "ET": "ADD", "NG": "LOS", "GH": "ACC",
+    "SN": "DSS", "MU": "MRU", "SC": "SEZ", "ZW": "HRE", "UG": "EBB",
+    "NA": "WDH", "BW": "GBE",
+    "AU": "SYD", "NZ": "AKL", "FJ": "NAN", "PG": "POM", "PW": "ROR",
+}
+
 # 週末不是週六日的國家（0=週一 … 6=週日）
 WEEKENDS = {
     "SA": [4, 5], "IL": [4, 5], "EG": [4, 5], "KW": [4, 5], "QA": [4, 5],
@@ -1776,7 +1808,7 @@ def main():
     for code, name, en, flag, region, weight, closure in COUNTRIES:
         meta = {"code": code, "name": name, "en": en, "flag": flag,
                 "region": region, "weight": weight, "closure": closure,
-                "verified": code in VERIFIED}
+                "verified": code in VERIFIED, "gateway": GATEWAY.get(code, "")}
         if code in WEEKENDS:
             meta["weekend"] = WEEKENDS[code]
         countries.append(meta)

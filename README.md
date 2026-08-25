@@ -52,9 +52,22 @@
 即時票價需要 Amadeus、Skyscanner 這類商用 API，而 API 金鑰不能放在前端程式碼裡，
 所以一定要有一個後端來代收請求——這個站是純靜態、直接放在 GitHub Pages 上的，沒有後端。
 
-折衷做法是：每組候補日期都能一鍵跳到 Google Flights（日期、目的地、出發地都帶好），
+折衷做法是：每組候補日期都能一鍵跳到 Kayak 或 Google Flights 查價，
 查到的價格再自己填回來。這樣「擁擠指數」和「實際票價」就能並排比較，
 而且不用申請金鑰、不用付費、不用維護伺服器。
+
+**連結一定要用路徑式的結構化網址**，把日期直接寫進 URL：
+
+```
+https://www.kayak.com.tw/flights/TPE-TYO/2026-05-16/2026-05-22
+https://www.google.com/travel/flights#flt=TPE.TYO.2026-05-16*TYO.TPE.2026-05-22;c:TWD;e:1;sd:1;t:f
+```
+
+第一版用的是 Google Flights 的文字查詢（`?q=Flights to Japan on 2026-05-16...`），
+但那會被它自己重新解析自然語言，日期常常被忽略，結果只顯示「未來六個月」。
+
+機場代碼預設帶入該國的主要國際門戶（資料裡的 `gateway` 欄位），使用者可以在介面上改成
+自己實際要飛的機場——像德國預設 FRA，但你要飛柏林就改成 BER。
 
 如果之後真的要接即時票價，需要多一個 serverless function（Cloudflare Workers、
 Vercel 之類）來保管金鑰並代打 API。

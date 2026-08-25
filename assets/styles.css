@@ -706,8 +706,17 @@ select#destination:focus { border-color: var(--accent); }
 .pick-clear:hover { border-color: var(--lv4); color: var(--lv4); }
 
 /* ---------------------------------------------------------- 票價記錄 */
-.dest-row { align-items: flex-end; }
-.field-narrow { flex: 0 1 130px; }
+.airports { align-items: flex-end; gap: 8px; margin-top: 12px; }
+.field-narrow { flex: 0 1 92px; }
+.airports .arrow { padding-bottom: 12px; color: var(--muted); font-size: 14px; }
+.airports-note {
+  flex: 1 1 100%; font-size: 11.5px; color: var(--muted); line-height: 1.5;
+}
+#origin, #arrival {
+  text-align: center; letter-spacing: .18em; text-transform: uppercase;
+  font-family: var(--font-num); font-weight: 500;
+}
+.farelinks { display: inline-flex; flex-wrap: wrap; gap: 12px; }
 
 .cand-extra {
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px;

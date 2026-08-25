@@ -421,8 +421,8 @@
       row.appendChild(top);
 
       var extra = el("div", "cand-extra");
-      var link = flightLink(r.start, endStr);
-      if (link) extra.appendChild(link);
+      var links = fareLinks(r.start, endStr);
+      if (links) extra.appendChild(links);
       extra.appendChild(priceChip(shortlist[r.idx]));
       if (cheapest !== null && shortlist[r.idx].price === cheapest) {
         extra.appendChild(el("span", "tag best", "最便宜"));
@@ -952,10 +952,10 @@
     acts.appendChild(clr);
     bar.appendChild(acts);
 
-    var link = flightLink(pk.start, pk.end);
-    if (link) {
+    var links = fareLinks(pk.start, pk.end);
+    if (links) {
       var fare = el("div", "pick-fare");
-      fare.appendChild(link);
+      fare.appendChild(links);
       bar.appendChild(fare);
     }
   }
@@ -1109,6 +1109,7 @@
     try { localStorage.setItem("hr.dest", code); } catch (e) { /* 忽略 */ }
     $("destination").value = code;
     $("destination-cal").value = code;
+    syncAirports();
     scoreCache = {};
     renderTrip();
     renderCalendar();
@@ -1126,33 +1127,83 @@
       sel.addEventListener("change", function () { setDestination(sel.value); });
     });
 
-    var origin = $("origin");
-    try { origin.value = localStorage.getItem("hr.origin") || ""; } catch (e) { /* 忽略 */ }
-    origin.addEventListener("change", function () {
-      try { localStorage.setItem("hr.origin", origin.value.trim()); } catch (e) { /* 忽略 */ }
-      renderShortlist();
-      renderPickBar();
+    var origin = $("origin"), arrival = $("arrival");
+    try {
+      origin.value = localStorage.getItem("hr.origin") || "TPE";
+      arrival.value = localStorage.getItem("hr.arrival") || "";
+    } catch (e) {
+      origin.value = "TPE";
+    }
+    [origin, arrival].forEach(function (inp) {
+      inp.addEventListener("input", function () {
+        inp.value = inp.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3);
+      });
+      inp.addEventListener("change", function () {
+        try {
+          localStorage.setItem("hr.origin", origin.value);
+          localStorage.setItem("hr.arrival", arrival.value);
+        } catch (e) { /* 忽略 */ }
+        renderShortlist();
+        renderPickBar();
+      });
     });
+    syncAirports();
+  }
+
+  // 目的地換了就把抵達機場帶成該國的主要門戶（使用者可以再改）
+  function syncAirports() {
+    var row = $("airports"), arrival = $("arrival");
+    if (!state.dest) {
+      row.hidden = true;
+      return;
+    }
+    row.hidden = false;
+    arrival.value = META[state.dest].gateway || "";
+    arrival.placeholder = META[state.dest].gateway || "機場";
+    try { localStorage.setItem("hr.arrival", arrival.value); } catch (e) { /* 忽略 */ }
   }
 
   /* -------------------------------------------------------- 查票價 */
   // 沒有後端就拿不到即時票價（金鑰不能放在前端），所以做成一鍵帶著
-  // 日期與目的地跳到 Google Flights，查到的價格再手動記回候補清單。
-  function originName() {
+  // 日期與機場跳到訂票網站，查到的價格再手動記回候補清單。
+  //
+  // 用路徑式的結構化網址，把日期直接寫進 URL。之前用 Google Flights 的
+  // 文字查詢（?q=Flights to Japan on ...）會被它自己重新解析，日期常常被忽略。
+  function iata(id, fallback) {
     var v = "";
-    try { v = ($("origin").value || "").trim(); } catch (e) { /* 忽略 */ }
-    return v || "Taipei";
+    try { v = ($(id).value || "").trim().toUpperCase(); } catch (e) { /* 忽略 */ }
+    return /^[A-Z]{3}$/.test(v) ? v : fallback;
   }
 
-  function flightLink(startStr, endStr) {
+  function fareCodes() {
     if (!state.dest) return null;
-    var q = "Flights to " + META[state.dest].en + " from " + originName() +
-            " on " + startStr + " through " + endStr;
-    var a = el("a", "farelink", "查票價 ↗");
-    a.href = "https://www.google.com/travel/flights?hl=zh-TW&q=" + encodeURIComponent(q);
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    return a;
+    var from = iata("origin", "TPE");
+    var to = iata("arrival", META[state.dest].gateway || "");
+    if (!from || !to || from === to) return null;
+    return { from: from, to: to };
+  }
+
+  function fareLinks(startStr, endStr) {
+    var c = fareCodes();
+    if (!c) return null;
+    var box = el("span", "farelinks");
+
+    var kayak = el("a", "farelink", "Kayak ↗");
+    kayak.href = "https://www.kayak.com.tw/flights/" + c.from + "-" + c.to +
+                 "/" + startStr + "/" + endStr + "?sort=price_a";
+    box.appendChild(kayak);
+
+    var gf = el("a", "farelink", "Google Flights ↗");
+    gf.href = "https://www.google.com/travel/flights?hl=zh-TW#flt=" +
+              c.from + "." + c.to + "." + startStr + "*" +
+              c.to + "." + c.from + "." + endStr + ";c:TWD;e:1;sd:1;t:f";
+    box.appendChild(gf);
+
+    Array.prototype.forEach.call(box.children, function (a) {
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+    });
+    return box;
   }
 
   function fmtPrice(n) {
