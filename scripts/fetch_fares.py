@@ -31,8 +31,10 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "data" / "fares"
 API = "https://api.travelpayouts.com/v2/prices/month-matrix"
 
-# 這個端點是快取查詢，不是即時搜尋，但還是別打太兇
-THROTTLE_SEC = 0.35
+# Travelpayouts 有「每分鐘 100 次請求」的速率限制。0.75 秒一次約等於
+# 每分鐘 80 次，留了餘裕。全部抓完約 9 分鐘，排程跑完全沒問題——
+# 這裡搶快沒有任何好處，被限流反而要整批重來。
+THROTTLE_SEC = 0.75
 TIMEOUT_SEC = 25
 
 
@@ -50,7 +52,11 @@ def month_starts(n):
 
 
 def fetch_month(token, origin, dest, month, currency):
-    """回傳 {日期: {p, c, f}}；查不到就回空 dict。單一月份失敗不該中斷整批。"""
+    """回傳 {日期: {p, c, f}}；查不到就回空 dict。單一月份失敗不該中斷整批。
+
+    被限流（429）時要重試——直接跳過的話會靜默少掉一整個月的資料，
+    而且從輸出上看不出來，只會覺得「這個月怎麼沒價格」。
+    """
     url = (API + "?origin=" + origin + "&destination=" + dest +
            "&month=" + month + "&currency=" + currency +
            "&show_to_affiliates=true")
@@ -59,19 +65,32 @@ def fetch_month(token, origin, dest, month, currency):
         "Accept": "application/json",
         "User-Agent": "holiday-radar-fares/1.0",
     })
-    try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT_SEC) as r:
-            payload = json.loads(r.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        if e.code == 401:
-            raise SystemExit("token 無效或未授權（401）——先確認 TRAVELPAYOUTS_TOKEN")
-        print("    " + month + " HTTP " + str(e.code), file=sys.stderr)
-        return {}
-    except Exception as e:                      # 逾時、連線中斷、JSON 壞掉
-        print("    " + month + " 失敗：" + str(e), file=sys.stderr)
-        return {}
 
-    if not payload.get("success"):
+    payload = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT_SEC) as r:
+                payload = json.loads(r.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                raise SystemExit("token 無效或未授權（401）——先確認 TRAVELPAYOUTS_TOKEN")
+            if e.code in (429, 503) and attempt < 2:
+                wait = 20 * (attempt + 1)
+                print("    " + month + " 被限流（" + str(e.code) + "），" +
+                      str(wait) + " 秒後重試", file=sys.stderr)
+                time.sleep(wait)
+                continue
+            print("    " + month + " HTTP " + str(e.code), file=sys.stderr)
+            return {}
+        except Exception as e:                  # 逾時、連線中斷、JSON 壞掉
+            if attempt < 2:
+                time.sleep(5)
+                continue
+            print("    " + month + " 失敗：" + str(e), file=sys.stderr)
+            return {}
+
+    if not payload or not payload.get("success"):
         return {}
 
     days = {}
