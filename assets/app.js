@@ -243,7 +243,9 @@
     month: null,
     countryYear: DATA.years[0],
     search: "",
-    dest: ""
+    dest: "",
+    calMode: "info",          // info = 點格子看細節、pick = 圈選出發與回程
+    pick: { start: null, end: null }
   };
 
   function loadSelection() {
@@ -759,7 +761,16 @@
         var s = dayScore(ds, codes, key);
         var parts = contributions(ds, codes, state.dest);
         var lv = levelOf(s);
-        var cell = el("button", "mday tint lv-bg" + lv + (ds === todayStr ? " today" : ""));
+        var cls = "mday tint lv-bg" + lv + (ds === todayStr ? " today" : "");
+        if (state.calMode === "pick") {
+          cls += " pickable";
+          var pk = state.pick;
+          if (pk.start && ds === pk.start) cls += " sel-start";
+          if (pk.end && ds === pk.end) cls += " sel-end";
+          if (pk.start && pk.end && ds > pk.start && ds < pk.end) cls += " sel-mid";
+          if (pk.start && !pk.end && ds === pk.start) cls += " sel-only";
+        }
+        var cell = el("button", cls);
         cell.appendChild(el("span", "n", String(day)));
         var major = parts.filter(function (p) { return p.impact >= 24; });
         var flags = major.slice(0, 2).map(function (p) { return META[p.code].flag; }).join("");
@@ -767,7 +778,10 @@
         cell.appendChild(el("span", "fl", flags || " "));
         cell.appendChild(el("span", "dot lv" + lv));
         cell.setAttribute("aria-label", (m + 1) + "月" + day + "日，擁擠指數 " + s);
-        cell.addEventListener("click", function () { openSheet(ds); });
+        cell.addEventListener("click", function () {
+          if (state.calMode === "pick") pickDay(ds);
+          else openSheet(ds);
+        });
         grid.appendChild(cell);
       })(i);
     }
@@ -794,12 +808,101 @@
         });
       });
     });
+    renderPickBar();
     items.sort(function (a, b) { return b.impact - a.impact; });
     if (!items.length) {
       hi.appendChild(el("p", "empty", "這個月沒有明顯的跨國連假，是相對清閒的月份。"));
     } else {
       items.slice(0, 12).forEach(function (it) { hi.appendChild(entryRow(it.code, it.part)); });
     }
+  }
+
+  /* ------------------------------------------------ 在月曆上圈選日期 */
+  function pickDay(ds) {
+    var pk = state.pick;
+    // 已經圈好一段、或點到出發日之前 → 重新從這天開始
+    if (!pk.start || pk.end || ds < pk.start) {
+      state.pick = { start: ds, end: null };
+    } else {
+      if (diffDays(parse(pk.start), parse(ds)) > 120) return;   // 與行程長度上限一致
+      state.pick.end = ds;
+    }
+    renderCalendar();
+    renderPickBar();
+  }
+
+  function clearPick() {
+    state.pick = { start: null, end: null };
+    renderCalendar();
+    renderPickBar();
+  }
+
+  function renderPickBar() {
+    var bar = $("pick-bar"), hint = $("pick-hint");
+    clear(bar);
+
+    if (state.calMode !== "pick") {
+      bar.hidden = true;
+      hint.hidden = true;
+      return;
+    }
+    hint.hidden = false;
+    var pk = state.pick;
+
+    if (!pk.start) {
+      hint.textContent = "點一天當作出發日，再點一天當作回程日。";
+      bar.hidden = true;
+      return;
+    }
+    if (!pk.end) {
+      hint.textContent = "已選出發日 " + fmtRange(pk.start, pk.start) + "，再點一天選回程。";
+      bar.hidden = false;
+      var half = el("div", "pick-info");
+      half.appendChild(el("b", null, fmtRange(pk.start, pk.start) + " 出發"));
+      half.appendChild(el("small", null, "再點一天決定回程"));
+      bar.appendChild(half);
+      var cancel = el("button", "pick-clear", "取消");
+      cancel.addEventListener("click", clearPick);
+      bar.appendChild(cancel);
+      return;
+    }
+
+    hint.textContent = "再點任何一天可以重新圈選。";
+    bar.hidden = false;
+    var len = diffDays(parse(pk.start), parse(pk.end)) + 1;
+    var score = tripScore(pk.start, len, activeCodes(), filterKey());
+
+    var info = el("div", "pick-info");
+    info.appendChild(el("b", null, fmtRange(pk.start, pk.end)));
+    info.appendChild(el("small", null, len + " 天・" + LEVELS[levelOf(score)].name));
+    bar.appendChild(info);
+    bar.appendChild(el("span", "pill lv" + levelOf(score), String(score)));
+
+    var acts = el("div", "pick-acts");
+    var saved = shortlistIndex(pk.start, len) >= 0;
+    var add = el("button", "pick-add" + (saved ? " is-on" : ""),
+      saved ? "✓ 已在候補" : "＋ 加入候補");
+    add.addEventListener("click", function () {
+      toggleShortlist(pk.start, len);
+      renderPickBar();
+    });
+    acts.appendChild(add);
+
+    var use = el("button", "pick-use", "帶到行程檢查");
+    use.addEventListener("click", function () {
+      $("start-date").value = pk.start;
+      $("end-date").value = pk.end;
+      readDates();
+      renderTrip();
+      markQuick();
+      switchTab("trip");
+    });
+    acts.appendChild(use);
+
+    var clr = el("button", "pick-clear", "清除");
+    clr.addEventListener("click", clearPick);
+    acts.appendChild(clr);
+    bar.appendChild(acts);
   }
 
   /* -------------------------------------------------------- 日期詳情 */
@@ -895,20 +998,36 @@
   }
 
   /* -------------------------------------------------------- 初始化 */
-  function initTabs() {
+  function switchTab(panel) {
     var tabs = document.querySelectorAll(".tab");
-    Array.prototype.forEach.call(tabs, function (t) {
-      t.addEventListener("click", function () {
-        Array.prototype.forEach.call(tabs, function (x) {
-          x.classList.remove("is-active");
-          x.setAttribute("aria-selected", "false");
+    Array.prototype.forEach.call(tabs, function (x) {
+      var on = x.dataset.panel === panel;
+      x.classList.toggle("is-active", on);
+      x.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    ["trip", "calendar", "countries"].forEach(function (p) {
+      $("panel-" + p).hidden = (p !== panel);
+    });
+    window.scrollTo({ top: 0 });
+  }
+
+  function initTabs() {
+    Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
+      t.addEventListener("click", function () { switchTab(t.dataset.panel); });
+    });
+  }
+
+  function initCalMode() {
+    var segs = $("cal-mode").children;
+    Array.prototype.forEach.call(segs, function (b) {
+      b.addEventListener("click", function () {
+        state.calMode = b.dataset.mode;
+        Array.prototype.forEach.call(segs, function (x) {
+          x.classList.toggle("is-on", x === b);
         });
-        t.classList.add("is-active");
-        t.setAttribute("aria-selected", "true");
-        ["trip", "calendar", "countries"].forEach(function (p) {
-          $("panel-" + p).hidden = (p !== t.dataset.panel);
-        });
-        window.scrollTo({ top: 0 });
+        if (state.calMode === "info") state.pick = { start: null, end: null };
+        renderCalendar();
+        renderPickBar();
       });
     });
   }
@@ -1061,6 +1180,7 @@
 
   state.selected = loadSelection();
   initTabs();
+  initCalMode();
   initDestination();
   initTripControls();
   initCalendar();

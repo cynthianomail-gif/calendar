@@ -130,11 +130,17 @@
         <strong id="month-title"></strong>
         <button class="iconbtn" id="next-month" aria-label="下個月">›</button>
       </div>
+      <div class="segmented" id="cal-mode" role="group" aria-label="月曆點擊模式">
+        <button class="seg is-on" data-mode="info">看當天細節</button>
+        <button class="seg" data-mode="pick">圈選出發與回程</button>
+      </div>
+      <p class="hint" id="pick-hint" hidden></p>
       <div class="weekhead">
         <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span>
         <span class="wknd">六</span><span class="wknd">日</span>
       </div>
       <div class="monthgrid" id="month-grid"></div>
+      <div class="pickbar" id="pick-bar" hidden></div>
       <div class="legend">
         <span><i class="lv0"></i>平穩</span>
         <span><i class="lv1"></i>略多</span>

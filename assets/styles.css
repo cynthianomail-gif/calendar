@@ -647,3 +647,62 @@ select#destination:focus { border-color: var(--accent); }
 }
 .sugg-add:hover { border-color: var(--accent); background: var(--accent-soft); }
 .sugg-add.is-on { border-style: solid; border-color: var(--accent); background: var(--accent-soft); }
+
+/* ------------------------------------------------ 月曆上圈選出發與回程 */
+.segmented {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  padding: 4px; margin-bottom: 12px;
+  background: var(--surface-2); border-radius: 999px;
+}
+.seg {
+  min-height: 34px; padding: 0 10px;
+  border: 0; border-radius: 999px; background: transparent;
+  color: var(--muted); font-size: 13px; letter-spacing: .03em;
+  transition: all .16s;
+}
+.seg.is-on {
+  background: var(--surface); color: var(--accent); font-weight: 600;
+  box-shadow: var(--shadow);
+}
+.seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.mday.pickable { cursor: pointer; }
+/* 圈選用「疊一層淡色 + 外框」而不是填滿，
+   這樣格子原本的擁擠度底色還看得見——挑日期時正需要那個資訊 */
+.mday.sel-mid, .mday.sel-start, .mday.sel-end, .mday.sel-only {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--accent) 15%, transparent),
+    color-mix(in srgb, var(--accent) 15%, transparent));
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.mday.sel-start, .mday.sel-end, .mday.sel-only {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.mday.sel-start .n, .mday.sel-end .n, .mday.sel-only .n {
+  color: var(--accent); font-weight: 600;
+}
+
+.pickbar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  margin-top: 14px; padding: 13px 14px;
+  border: 1px solid var(--accent); border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+.pick-info { flex: 1 1 150px; min-width: 0; }
+.pick-info b { display: block; font-size: 14.5px; font-weight: 600; }
+.pick-info small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.pick-acts { display: flex; flex-wrap: wrap; gap: 7px; width: 100%; }
+.pick-add, .pick-use, .pick-clear {
+  flex: 1 1 auto; min-height: 38px; padding: 0 12px;
+  border-radius: 999px; font-size: 13px; font-weight: 600;
+  border: 1px solid var(--accent); background: var(--surface); color: var(--accent);
+  transition: all .16s;
+}
+.pick-add.is-on { background: var(--accent); color: #fff; }
+.pick-use { background: var(--accent); color: #fff; }
+.pick-clear {
+  flex: 0 0 auto; border-color: var(--line-strong); color: var(--muted);
+  background: transparent; font-weight: 400;
+}
+.pick-clear:hover { border-color: var(--lv4); color: var(--lv4); }
